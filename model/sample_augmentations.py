@@ -56,7 +56,7 @@ if __name__ == '__main__':
     from data_augmentation import PreProcess, DataAugmentation
 
     train_ds = RoadSurfaceDataset(
-        '/data/road_surface_detection/dataset_simple/dataset_train.csv',
+        '/data/road_surface_classifier/dataset_simple/dataset_train.csv',
         transform=PreProcess(),
         limit=50)
 

@@ -36,7 +36,7 @@ if __name__ == '__main__':
     # Setup early stopping based on validation loss
     early_stopping_callback = EarlyStopping(monitor='val_loss',
                                             mode='min',
-                                            patience=25)
+                                            patience=50)
 
     # Log epoch + validation loss to CSV
     logger = CSVLogger(str(save_dir))
@@ -44,14 +44,14 @@ if __name__ == '__main__':
     # Get dataset
     preprocess = PreProcess()
     train_ds = RoadSurfaceDataset(
-        '/data/road_surface_detection/dataset_simple/dataset_train.csv',
+        '/data/road_surface_classifier/dataset_simple/dataset_train.csv',
         transform=preprocess)
     val_ds = RoadSurfaceDataset(
-        '/data/road_surface_detection/dataset_simple/dataset_val.csv',
+        '/data/road_surface_classifier/dataset_simple/dataset_val.csv',
         transform=preprocess)
 
     # Create data loaders.
-    batch_size = 32
+    batch_size = 64
     train_dl = DataLoader(train_ds,
                           num_workers=16,
                           batch_size=batch_size,
@@ -59,9 +59,8 @@ if __name__ == '__main__':
     val_dl = DataLoader(val_ds, num_workers=16, batch_size=batch_size)
 
     # Model
-    model = PLMaskCNN()
-    model.load_from_checkpoint(
-        '/home/jon/git/road_surface_detection/results/20220911_012659Z/model-epoch=04-val_loss=0.08898.ckpt'
+    model = PLMaskCNN().load_from_checkpoint(
+        '/home/jon/git/road_surface_classifier/results/20220917_054135Z/model-epoch=64-val_loss=0.37010.ckpt'
     )
     torch.save(model, save_dir / 'model.pth')
 

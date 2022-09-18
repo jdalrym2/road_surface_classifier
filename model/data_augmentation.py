@@ -36,5 +36,5 @@ class PreProcess(nn.Module):
     @torch.no_grad()
     def forward(self, x) -> torch.Tensor:
         x = kornia.utils.image_to_tensor(x, keepdim=True).float()
-        x = kornia.enhance.normalize_min_max(x, 0., 1.)
+        x = torch.divide(x, 255.)
         return x

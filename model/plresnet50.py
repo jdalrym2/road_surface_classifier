@@ -46,7 +46,7 @@ class PLResnet50(pl.LightningModule):
                                         bias=True)
 
         weights_df = pd.read_csv(
-            '/data/road_surface_detection/dataset_simple/class_weights.csv')
+            '/data/road_surface_classifier/dataset_simple/class_weights.csv')
 
         self.weights = torch.tensor(weights_df['weight']).float().cuda()
         self.labels = list(weights_df['class_name'])

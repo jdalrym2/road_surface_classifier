@@ -23,7 +23,7 @@ class PLMaskCNN(pl.LightningModule):
         self.model = MaskCNN()
 
         weights_df = pd.read_csv(
-            '/data/road_surface_detection/dataset_simple/class_weights.csv')
+            '/data/road_surface_classifier/dataset_simple/class_weights.csv')
 
         self.weights = torch.tensor(weights_df['weight']).float().cuda()
         self.labels = list(weights_df['class_name'])
@@ -40,7 +40,7 @@ class PLMaskCNN(pl.LightningModule):
         y_hat, z_hat = self.forward(x, xm)
         loss1 = self.loss(y_hat, xm)
         loss2 = functional.cross_entropy(z_hat, z, weight=self.weights)
-        loss = loss1 + 1e-6 * loss2
+        loss = 1e-4 * loss1 + loss2
         self.log('train_loss1', loss1, on_step=False, on_epoch=True)
         self.log('train_loss2', loss2, on_step=False, on_epoch=True)
         self.log('train_loss', loss, on_step=False, on_epoch=True)
@@ -53,11 +53,11 @@ class PLMaskCNN(pl.LightningModule):
         y_hat, z_hat = self.forward(x, xm)
         loss1 = self.loss(y_hat, xm)
         loss2 = functional.cross_entropy(z_hat, z, weight=self.weights)
-        loss = loss1 + 1e-6 * loss2
+        loss = 1e-4 * loss1 + loss2
         self.log('val_loss1', loss1)
         self.log('val_loss2', loss2)
         self.log('val_loss', loss)
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-4)
+        return torch.optim.Adam(self.parameters(), lr=1e-6)

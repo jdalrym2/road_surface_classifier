@@ -90,9 +90,6 @@ def generate_plots(results_dir: pathlib.Path,
         print('Exception occurred looking for best model:')
         traceback.print_exc()
 
-    plot_sample(model_path, best_model, val_dl)
-    return
-
     # Plot metrics
     if csv_path_found:
         plot_metrics(csv_path, results_dir / 'metrics_plot.png')
@@ -100,13 +97,24 @@ def generate_plots(results_dir: pathlib.Path,
         print('Not generating metrics plot...')
 
     # Plot confusion matrix
+    # if model_path_found and best_model_found and val_dl is not None:
+    #     plot_confusion_matrix(model_path=model_path,
+    #                           ckpt_path=best_model,
+    #                           val_dl=val_dl,
+    #                           output_path=results_dir / 'cm.png')
+    # else:
+    #     print('Not generating confusion matrix')
+
+    # Dump samples
     if model_path_found and best_model_found and val_dl is not None:
-        plot_confusion_matrix(model_path=model_path,
-                              ckpt_path=best_model,
-                              val_dl=val_dl,
-                              output_path=results_dir / 'cm.png')
+        samples_dir = results_dir / 'val_samples'
+        samples_dir.mkdir(parents=False, exist_ok=True)
+        dump_samples(model_path=model_path,
+                     ckpt_path=best_model,
+                     val_dl=val_dl,
+                     output_path=samples_dir)
     else:
-        print('Not generating confusion matrix')
+        print('Not dumping validation samples.')
 
 
 def plot_metrics(csv_path: pathlib.Path, output_path: pathlib.Path) -> None:
@@ -134,6 +142,101 @@ def plot_metrics(csv_path: pathlib.Path, output_path: pathlib.Path) -> None:
     plt.close(fig)
 
 
+def dump_samples(model_path: pathlib.Path,
+                 ckpt_path: pathlib.Path,
+                 val_dl: DataLoader,
+                 output_path: pathlib.Path,
+                 labels: Optional[List[str]] = None):
+    """
+    Plot a confusion matrix for a model.
+
+    Args:
+        model_path (pathlib.Path): Path to model to load
+        ckpt_path (pathlib.Path): Path to model checkpoint to load
+        val_dl (DataLoader): Path to validation DataLoader to use
+        output_path (pathlib.Path): Plot output directory
+        labels (Optional[List[str]], optional): Class labels. If not provided,
+            will be attempted to be extracted from the model. Otherwise, non-specific
+            values will be used. Defaults to None.
+    """
+    # Load model and checkpoint
+    model = torch.load(model_path).load_from_checkpoint(ckpt_path)
+    model.to(device)
+    model.eval()
+
+    # Try to get labels
+    if labels is None:
+        labels = model.__dict__.get('labels')
+
+    # Separate correct / incorrect folders
+    correct_path = output_path / 'correct'
+    correct_path.mkdir(parents=False, exist_ok=True)
+    incorrect_path = output_path / 'incorrect'
+    incorrect_path.mkdir(parents=False, exist_ok=True)
+
+    # Get truth and predictions using the dataloader
+    counter = 0
+    for x, features in tqdm(iter(val_dl)):
+        xm = x[:, 3:, :, :]
+        x = x[:, :3, :, :]
+
+        y_true = features.numpy()
+
+        # predict with the model
+        m, y_pred = model(x.to(device), xm.to(device))
+        y_pred = torch.argmax(y_pred.cpu(), axis=1).numpy()     # type: ignore
+
+        x_p = np.moveaxis(x.numpy(), 1, -1)
+        xm_p = np.moveaxis(xm.numpy(), 1, -1)
+        m_p = np.moveaxis(m.cpu().detach().numpy(), 1, -1)
+        x2_p = np.moveaxis(torch.multiply(x, m.cpu()).detach().numpy(), 1, -1)
+
+        for idx in range(x.shape[0]):
+
+            if labels is not None:
+                pred_label, true_label = labels[y_pred[idx]], labels[
+                    y_true[idx]]
+            else:
+                pred_label, true_label = str(y_pred[idx]), str(y_true[idx])
+
+            fig, ax = plt.subplots(2,
+                                   2,
+                                   sharex=True,
+                                   sharey=True,
+                                   figsize=(11, 11))
+            ax = ax.flatten()     # type: ignore
+            fig.suptitle('True Label: %s; Predicted Label: %s' %
+                         (true_label, pred_label))
+            ax[0].imshow(x_p[idx, ...])
+            ax[0].set_title('Input Image')
+            ax[1].imshow(xm_p[idx, ...], cmap='bwr', vmin=-1, vmax=1)
+            ax[1].set_title('Input Mask')
+
+            m_p_this = m_p[idx, ...]
+            vmax = max(abs(m_p_this.max()), abs(m_p_this.min()))
+            ax[2].imshow(m_p_this, cmap='bwr', vmax=vmax, vmin=-vmax)
+            ax[2].set_title('Pred Mask')
+
+            ax[3].imshow(x2_p[idx, ...])
+            ax[3].set_title('Classifier Input Mask')
+
+            for _ax in ax:
+                _ax.xaxis.set_visible(False)
+                _ax.yaxis.set_visible(False)
+
+            # Get output filename
+            counter += 1
+            plt_path = correct_path if y_pred[idx] == y_true[
+                idx] else incorrect_path
+            plt_path = plt_path / ('fig_%05d.png' % counter)
+
+            plt.show()
+            break
+
+            fig.savefig(str(plt_path))
+            plt.close(fig)
+
+
 def plot_confusion_matrix(model_path: pathlib.Path,
                           ckpt_path: pathlib.Path,
                           val_dl: DataLoader,
@@ -152,10 +255,6 @@ def plot_confusion_matrix(model_path: pathlib.Path,
             values will be used. Defaults to None.
     """
     # Load model and checkpoint
-
-    print(model_path)
-    print(ckpt_path)
-
     model = torch.load(model_path).load_from_checkpoint(ckpt_path)
     model.to(device)
     model.eval()
@@ -188,41 +287,10 @@ def plot_confusion_matrix(model_path: pathlib.Path,
     plt.close(fig)
 
 
-def plot_sample(model_path: pathlib.Path, ckpt_path: pathlib.Path,
-                val_dl: DataLoader):
-
-    # Load model and checkpoint
-    print(model_path)
-    print(ckpt_path)
-
-    model = torch.load(model_path).load_from_checkpoint(ckpt_path)
-    model.to(device)
-    model.eval()
-
-    # Get truth and predictions using the dataloader
-    y_true_l, y_pred_l = [], []
-    for x, features in tqdm(iter(val_dl)):
-        xm = x[:, 3:, :, :]
-        x = x[:, :3, :, :]
-        y_true_l.append(features.numpy())
-        # predict with the model
-
-        ym, y_pred = model(x.to(device), xm.to(device))
-
-        import matplotlib.pyplot as plt
-        fig, ax = plt.subplots(4, 2, sharex=True, sharey=True)
-        for i in range(4):
-            ax[i, 0].imshow(xm[i, 0, ...].cpu().detach(), vmin=-1, vmax=1)
-            ax[i, 1].imshow(ym[i, 0, ...].cpu().detach(), vmin=-1, vmax=1)
-        plt.show()
-
-        break
-
-
 if __name__ == '__main__':
 
     results_dir = pathlib.Path(
-        '/home/jon/git/road_surface_detection/results/20220911_024715Z')
+        '/home/jon/git/road_surface_classifier/results/20220917_054135Z')
     assert results_dir.is_dir()
 
     # Import dataset
@@ -230,8 +298,9 @@ if __name__ == '__main__':
     from data_augmentation import PreProcess
     preprocess = PreProcess()
     val_ds = RoadSurfaceDataset(
-        '/data/road_surface_detection/dataset_simple/dataset_val.csv',
-        transform=preprocess)
-    val_dl = DataLoader(val_ds, num_workers=16, batch_size=16, shuffle=False)
+        '/data/road_surface_classifier/dataset_simple/dataset_val.csv',
+        transform=preprocess,
+        limit=640)
+    val_dl = DataLoader(val_ds, num_workers=16, batch_size=16, shuffle=True)
 
     generate_plots(results_dir, val_dl)
