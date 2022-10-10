@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 # Set matplotlib backend
-# matplotlib.use('Agg')
+matplotlib.use('Agg')
 
 # Get PyTorch device to use
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -97,16 +97,17 @@ def generate_plots(results_dir: pathlib.Path,
         print('Not generating metrics plot...')
 
     # Plot confusion matrix
-    # if model_path_found and best_model_found and val_dl is not None:
-    #     plot_confusion_matrix(model_path=model_path,
-    #                           ckpt_path=best_model,
-    #                           val_dl=val_dl,
-    #                           output_path=results_dir / 'cm.png')
-    # else:
-    #     print('Not generating confusion matrix')
+    if model_path_found and best_model_found and val_dl is not None:
+        plot_confusion_matrix(model_path=model_path,
+                              ckpt_path=best_model,
+                              val_dl=val_dl,
+                              output_path=results_dir / 'cm.png')
+    else:
+        print('Not generating confusion matrix')
 
     # Dump samples
-    if model_path_found and best_model_found and val_dl is not None:
+    if False:
+        #if model_path_found and best_model_found and val_dl is not None:
         samples_dir = results_dir / 'val_samples'
         samples_dir.mkdir(parents=False, exist_ok=True)
         dump_samples(model_path=model_path,
@@ -230,9 +231,6 @@ def dump_samples(model_path: pathlib.Path,
                 idx] else incorrect_path
             plt_path = plt_path / ('fig_%05d.png' % counter)
 
-            plt.show()
-            break
-
             fig.savefig(str(plt_path))
             plt.close(fig)
 
@@ -290,7 +288,7 @@ def plot_confusion_matrix(model_path: pathlib.Path,
 if __name__ == '__main__':
 
     results_dir = pathlib.Path(
-        '/home/jon/git/road_surface_classifier/results/20220917_054135Z')
+        '/home/jon/git/road_surface_classifier/results/20221003_044531Z')
     assert results_dir.is_dir()
 
     # Import dataset
@@ -299,8 +297,7 @@ if __name__ == '__main__':
     preprocess = PreProcess()
     val_ds = RoadSurfaceDataset(
         '/data/road_surface_classifier/dataset_simple/dataset_val.csv',
-        transform=preprocess,
-        limit=640)
+        transform=preprocess)
     val_dl = DataLoader(val_ds, num_workers=16, batch_size=16, shuffle=True)
 
     generate_plots(results_dir, val_dl)

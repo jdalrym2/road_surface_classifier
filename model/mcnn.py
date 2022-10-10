@@ -4,6 +4,9 @@ import torch.nn as nn
 import torch.nn.functional as functional
 import torchvision
 
+from torch.nn import MaxUnpool2d
+#from patch import MaxUnpool2d
+
 
 class DecoderBlock(nn.Module):
 
@@ -99,7 +102,7 @@ class Resnet50Decoder(nn.ModuleList):
         self.layer_3 = DecoderBlock(512, 256)
         self.layer_4 = DecoderBlock(256, 64, kernel_size=5)
 
-        self.unpool = nn.MaxUnpool2d(kernel_size=3, stride=2, padding=1)
+        self.unpool = MaxUnpool2d(kernel_size=3, stride=2, padding=1)
         self.final_1 = nn.Conv2d(64, 1, 3)
         self.relu = nn.ReLU(inplace=True)
         self.final_2 = nn.Conv2d(1, 1, 3)
@@ -130,7 +133,7 @@ class Resnet18Decoder(nn.ModuleList):
         self.layer_3 = DecoderBlock(128, 64)
         self.layer_4 = DecoderBlock(64, 64, kernel_size=5)
 
-        self.unpool = nn.MaxUnpool2d(kernel_size=3, stride=2, padding=1)
+        self.unpool = MaxUnpool2d(kernel_size=3, stride=2, padding=1)
         self.final_1 = nn.Conv2d(64, 2, 3)
         self.relu = nn.ReLU(inplace=True)
         self.final_2 = nn.Conv2d(2, 2, 3)
@@ -155,13 +158,13 @@ class Resnet18Decoder(nn.ModuleList):
 
 class MaskCNN(nn.Module):
 
-    def __init__(self):
+    def __init__(self, num_classes=2):
         super().__init__()
         self.encoder = Resnet18Encoder(in_channels=4)
         self.encoder2 = Resnet18Encoder(in_channels=3)
         self.decoder = Resnet18Decoder()
         self.avgpool = nn.AdaptiveAvgPool2d(output_size=(1, 1))
-        self.fc = nn.Linear(512, 2, bias=True)     # Resnet50: 2048
+        self.fc = nn.Linear(512, num_classes, bias=True)     # Resnet50: 2048
 
     def forward(self, x):
 

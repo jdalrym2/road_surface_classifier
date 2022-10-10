@@ -36,7 +36,7 @@ if __name__ == '__main__':
     # Setup early stopping based on validation loss
     early_stopping_callback = EarlyStopping(monitor='val_loss',
                                             mode='min',
-                                            patience=50)
+                                            patience=10)
 
     # Log epoch + validation loss to CSV
     logger = CSVLogger(str(save_dir))
@@ -59,9 +59,7 @@ if __name__ == '__main__':
     val_dl = DataLoader(val_ds, num_workers=16, batch_size=batch_size)
 
     # Model
-    model = PLMaskCNN().load_from_checkpoint(
-        '/home/jon/git/road_surface_classifier/results/20220917_054135Z/model-epoch=64-val_loss=0.37010.ckpt'
-    )
+    model = PLMaskCNN()
     torch.save(model, save_dir / 'model.pth')
 
     # Trainer
