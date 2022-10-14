@@ -44,10 +44,10 @@ if __name__ == '__main__':
     # Get dataset
     preprocess = PreProcess()
     train_ds = RoadSurfaceDataset(
-        '/data/road_surface_classifier/dataset_simple/dataset_train.csv',
+        '/data/road_surface_classifier/dataset_new_simple/dataset_train.csv',
         transform=preprocess)
     val_ds = RoadSurfaceDataset(
-        '/data/road_surface_classifier/dataset_simple/dataset_val.csv',
+        '/data/road_surface_classifier/dataset_new_simple/dataset_val.csv',
         transform=preprocess)
 
     # Create data loaders.

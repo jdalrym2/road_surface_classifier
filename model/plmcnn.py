@@ -17,7 +17,7 @@ class PLMaskCNN(pl.LightningModule):
 
     def __init__(
         self,
-        weights_path='/data/road_surface_classifier/dataset_simple/class_weights.csv'
+        weights_path='/data/road_surface_classifier/dataset_new_simple/class_weights.csv'
     ):
         super().__init__()
 

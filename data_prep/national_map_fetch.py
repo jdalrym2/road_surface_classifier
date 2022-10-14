@@ -5,10 +5,9 @@ import os
 import sys
 import pathlib
 import urllib.parse
-from typing import Tuple, Union
+from typing import Union
 
 import requests
-import numpy as np
 from tqdm import tqdm
 
 
@@ -18,102 +17,13 @@ class NationalMapFetcher:
     __slots__ = ['_db_loc']
 
     def __init__(self, db_loc: Union[str, pathlib.Path]):
+
         # Set filesystem database location
         self._db_loc = pathlib.Path(db_loc)
         if not self._db_loc.is_dir():
             raise ValueError('Database directory does not exist!')
 
-    @staticmethod
-    def wgs84_to_xy(
-        lon: Union[float, np.ndarray],
-        lat: Union[float, np.ndarray],
-        z: int,
-        iw: int = 256,
-        ih: int = 256
-    ) -> Union[Tuple[int, int, int, int], Tuple[np.ndarray, np.ndarray,
-                                                np.ndarray, np.ndarray]]:
-        """
-        Convert WGS-84 coordinates (degrees) to tilemap x, y values for a
-        given zoom level.
-
-        Args:
-            lon (Union[float, np.ndarray]): Longitude or array of longitude values (degrees)
-            lat (Union[float, np.ndarray]): Latitude or array of latitude values (degrees)
-            z (int): Tilemap zoom level
-            iw (int, optional): Tile width to compute output x-pixel. Defaults to 256.
-            ih (int, optional): Tile height to compute output y-pixel. Defaults to 256.
-
-        Returns:
-            Union[Tuple[int, int, int, int], Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
-                Output tilemap values and pixel values: (tile x, tile y, pixel x, pixel y)
-        """
-        # Sanity check that inputs are the same type
-        assert type(lon) == type(lat)
-
-        # Convert everything to NumPy arrays to work with
-        if not isinstance(lon, np.ndarray):
-            lon_d, lat_d = np.array(lon), np.array(lat)
-        else:
-            lon_d, lat_d = lon, lat
-
-        # Do the math! x, y -> "tile" x, y; ix, iy -> "image" xy
-        n = np.power(2, z)
-        ix_ar = (lon_d + 180.0) / 360.0 * n
-        iy_ar = (1.0 - np.arcsinh(np.tan(np.deg2rad(lat_d))) / np.pi) / 2.0 * n
-        x_ar, y_ar = np.floor(ix_ar).astype(int), np.floor(iy_ar).astype(int)
-        ix_ar, iy_ar = np.floor(((ix_ar - x_ar) * iw)).astype(int), np.floor(
-            ((iy_ar - y_ar) * ih)).astype(int)
-
-        # Output array or integer values based on input datatype
-        if not isinstance(lon, np.ndarray):
-            x: int = x_ar.item()
-            y: int = y_ar.item()
-            ix: int = ix_ar.item()
-            iy: int = iy_ar.item()
-            return x, y, ix, iy
-        else:
-            return x_ar, y_ar, ix_ar, iy_ar
-
-    @staticmethod
-    def xy_to_wgs84(
-            x: Union[float, np.ndarray], y: Union[float, np.ndarray], z: int
-    ) -> Union[Tuple[float, float], Tuple[np.ndarray, np.ndarray]]:
-        """
-        Convert tile map x, y values to WGS-84 coordinates (degrees) for a given
-        zoom level.
-
-        Args:
-            x (Union[float, np.ndarray]): Tilemap x-value or array of x-values
-            y (Union[float, np.ndarray]): Tilemap y-value or array of y-values
-            z (int): Tilemap zoom level
-
-        Returns:
-            Union[Tuple[float, float], Tuple[np.ndarray, np.ndarray]]: Output
-                WGS-84 coordinates: (lon, lat) (degrees)
-        """
-        # Sanity check that inputs are the same type
-        assert type(x) == type(y)
-
-        # Convert everything to NumPy arrays to work with
-        if not isinstance(x, np.ndarray):
-            x_ar, y_ar = np.array(x), np.array(y)
-        else:
-            x_ar, y_ar = x, y
-
-        # Do the math!
-        n = np.power(2, z)
-        lon_d = x_ar / n * 360.0 - 180.0
-        lat_d = np.rad2deg(np.arctan(np.sinh(np.pi * (1 - 2 * y_ar / n))))
-
-        # Output array or integer values based on input datatype
-        if not isinstance(x, np.ndarray):
-            lon: float = lon_d.astype(float).item()
-            lat: float = lat_d.astype(float).item()
-            return lon, lat
-        else:
-            return lon_d, lat_d
-
-    def fetch(self, z: int, x: int, y: int) -> pathlib.Path:
+    def fetch(self, z: int, x: float, y: float) -> pathlib.Path:
         """
         Fetch NationalMap imagery for a given set of
         tilemap coordinates.
@@ -125,8 +35,8 @@ class NationalMapFetcher:
 
         Args:
             z (int): Tilemap zoom level
-            x (int): Tilemap x-value
-            y (int): Tilemap y-value
+            x (float): Tilemap x-value (in some cases may be fractional)
+            y (float): Tilemap y-value (in some cases may be fractional)
 
         Raises:
             ValueError: If the URL fails to fetch (i.e. doesn't exist)
@@ -135,7 +45,7 @@ class NationalMapFetcher:
             pathlib.Path: Path to fetched image
         """
         # Determine output path
-        output_path = self.get_save_path(z, x, y)
+        output_path = self.get_save_path(z, int(x), int(y))
         if not output_path.exists():
             # Get fetch URL
             url = self.get_fetch_url(z, x, y)
@@ -170,20 +80,20 @@ class NationalMapFetcher:
         return self._db_loc / str(z) / str(y) / f'{x:d}.jpg'
 
     @staticmethod
-    def get_fetch_url(z: int, x: int, y: int) -> str:
+    def get_fetch_url(z: int, x: float, y: float) -> str:
         """
         Get the nationalmap.gov fetch URL given a set of tilemap
-        coordiantes.
+        coordinates.
 
         Args:
             z (int): Tilemap zoom level
-            x (int): Tilemap x-value
-            y (int): Tilemap y-value
+            x (float): Tilemap x-value (if fractional, will be rounded down to nearest int)
+            y (float): Tilemap y-value (if fractional, will be rounded down to nearest int)
 
         Returns:
             str: URL to fetch
         """
-        return f'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z:d}/{y:d}/{x:d}'
+        return f'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z:d}/{int(y):d}/{int(x):d}'
 
     @staticmethod
     def url_exists(url: str) -> bool:
