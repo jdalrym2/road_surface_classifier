@@ -60,4 +60,5 @@ class PLMaskCNN(pl.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-4)
+        lr = 5e-6     # Orig: 1e-4
+        return torch.optim.Adam(self.parameters(), lr=lr)
