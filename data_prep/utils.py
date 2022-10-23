@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """ Dataset Preparation Utilities """
 from typing import Union, Tuple, overload
-import typing
 
 import numpy as np
 from osgeo import ogr, osr

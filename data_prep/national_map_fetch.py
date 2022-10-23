@@ -93,7 +93,8 @@ class NationalMapFetcher:
         Returns:
             str: URL to fetch
         """
-        return f'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z:d}/{int(y):d}/{int(x):d}'
+        #return f'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z:d}/{int(y):d}/{int(x):d}'
+        return f'https://gis.apfo.usda.gov/arcgis/rest/services/NAIP/USDA_CONUS_PRIME/ImageServer/tile/{z:d}/{int(y):d}/{int(x):d}'
 
     @staticmethod
     def url_exists(url: str) -> bool:
@@ -107,6 +108,7 @@ class NationalMapFetcher:
             bool: True if the URL exists, else False
         """
         response = requests.head(url)
+
         if response.status_code == 200:
             return 'content-length' in response.headers
         else:
