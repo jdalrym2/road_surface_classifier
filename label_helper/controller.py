@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import pathlib
-from typing import Optional
+import enum
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QHeaderView
@@ -14,6 +14,12 @@ from .label_attr_model import LabelAttrModel
 from .sqlite3_interface import Sqlite3Interface
 from .ui.RSC_LabelHelper import Ui_MainWindow
 from .utils import image_to_pixmap
+
+
+class KeyEnum(enum.Enum):
+    OBSCURATION = 'Obscuration'
+    NO_DATA = 'No Data'
+    BAD_DETECT = 'Bad Detect'
 
 
 class Controller:
@@ -63,14 +69,16 @@ class Controller:
         if forward:
             while idx + 1 < self.num_features:
                 feat_dict = self.interface.get_feature(idx + 1)
-                if feat_dict.get('obscuration', -1) < 0:
+                if feat_dict.get('obscuration', -1) < 0 and not feat_dict.get(
+                        'bad_detect') and not feat_dict.get('no_data'):
                     break
                 idx += 1
             idx += 1
         else:
             while idx > 1:
                 feat_dict = self.interface.get_feature(idx - 1)
-                if feat_dict.get('obscuration', -1) < 0:
+                if feat_dict.get('obscuration', -1) < 0 and not feat_dict.get(
+                        'bad_detect') and not feat_dict.get('no_data'):
                     break
                 idx -= 1
             idx -= 1
@@ -101,8 +109,14 @@ class Controller:
             'OSM ID': feature_dict['osm_id'],
             'Class': feature_dict['class']
         })
-        self.labelAttrModel.add_label('Obscuration',
-                                      feature_dict['obscuration'])
+        self.labelAttrModel.add_labels({
+            KeyEnum.OBSCURATION.value:
+            feature_dict['obscuration'],
+            KeyEnum.NO_DATA.value:
+            feature_dict['no_data'],
+            KeyEnum.BAD_DETECT.value:
+            feature_dict['bad_detect']
+        })
 
         # Set file label
         file_label_text = '<b>Chip Path:&nbsp;&nbsp;</b> %s<br/><b>Mask Path:&nbsp;&nbsp;</b>%s' % (
@@ -124,9 +138,16 @@ class Controller:
 
     def save_state(self):
         # Get obscuration of current index
-        obsc = int(self.labelAttrModel.attr_dict.get('Obscuration', -1))
+        obsc = int(
+            self.labelAttrModel.attr_dict.get(KeyEnum.OBSCURATION.value, -1))
+        nd = int(self.labelAttrModel.attr_dict.get(KeyEnum.NO_DATA.value, 0))
+        bd = int(self.labelAttrModel.attr_dict.get(KeyEnum.BAD_DETECT.value,
+                                                   0))
+
         if self.cur_image_idx is not None:
             self.interface.set_feature_obscuration(self.cur_image_idx, obsc)
+            self.interface.set_feature_no_data(self.cur_image_idx, bool(nd))
+            self.interface.set_feature_bad_detect(self.cur_image_idx, bool(bd))
 
     def update_img_label(self):
         if self.chip_path is None or self.mask_path is None:
@@ -137,19 +158,25 @@ class Controller:
                                   self.ui.imgLabel.height(),
                                   Qt.KeepAspectRatio)
 
-        px2 = image_to_pixmap(self.mask_path)
-        px2 = px2.scaled(px1.width(), px1.height())
+        px2 = image_to_pixmap(self.chip_path)
+        px2: QPixmap = px1.scaled(self.ui.imgLabelMask.width(),
+                                  self.ui.imgLabelMask.height(),
+                                  Qt.KeepAspectRatio)
 
-        painter = QPainter(px1)
+        px3 = image_to_pixmap(self.mask_path)
+        px3 = px3.scaled(px2.width(), px2.height())
+
+        painter = QPainter(px2)
         comp_mode = QPainter.CompositionMode_Screen if self.ui.screenRadioButton.isChecked(
         ) else QPainter.CompositionMode_Source
         painter.setCompositionMode(comp_mode)
         painter.setOpacity(self.ui.opacityHorizontalSlider.value() /
                            self.ui.opacityHorizontalSlider.maximum())
-        painter.drawPixmap(0, 0, px1.width(), px1.height(), px2)
+        painter.drawPixmap(0, 0, px2.width(), px2.height(), px3)
         del painter
 
         self.ui.imgLabel.setPixmap(px1)
+        self.ui.imgLabelMask.setPixmap(px2)
 
     def _slider_value_changed(self, v: int):
         self.ui.imgNumSpinBox.blockSignals(True)
@@ -176,12 +203,23 @@ class Controller:
             except ValueError:
                 pass
             else:
-                # Hint, this is super hacky
-                self.labelAttrModel.setData(self.labelAttrModel.index(0, 1),
-                                            o_val, Qt.EditRole)
+                if -1 <= o_val <= 10:
+                    self.labelAttrModel.attr_dict[
+                        KeyEnum.OBSCURATION.value] = o_val
+                    self.labelAttrModel.update_layout()
+                    self.load_next_image()
             finally:
                 self.ui.inputLineEdit.clear()
-                self.load_next_image()
+        elif v.startswith('t'):
+            try:
+                t_val = int(v[1:])
+            except ValueError:
+                pass
+            else:
+                if 0 <= t_val <= 10:
+                    self.ui.opacityHorizontalSlider.setValue(t_val * 10)
+            finally:
+                self.ui.inputLineEdit.clear()
         elif v == 'p':
             self.load_prev_image()
             self.ui.inputLineEdit.clear()
@@ -195,11 +233,21 @@ class Controller:
             self.skip(forward=True)
             self.ui.inputLineEdit.clear()
         elif v == 'nn':
-            # Hint, this is super hacky
-            # Set no obscuration and move on
-            self.labelAttrModel.setData(self.labelAttrModel.index(0, 1), 0,
-                                        Qt.EditRole)
+            self.labelAttrModel.attr_dict[KeyEnum.OBSCURATION.value] = 0
+            self.labelAttrModel.update_layout()
             self.load_next_image()
+            self.ui.inputLineEdit.clear()
+        elif v == 'bd':
+            self.labelAttrModel.attr_dict[
+                KeyEnum.BAD_DETECT.value] = 1 - self.labelAttrModel.attr_dict[
+                    KeyEnum.BAD_DETECT.value]
+            self.labelAttrModel.update_layout()
+            self.ui.inputLineEdit.clear()
+        elif v == 'dd':
+            self.labelAttrModel.attr_dict[
+                KeyEnum.NO_DATA.value] = 1 - self.labelAttrModel.attr_dict[
+                    KeyEnum.NO_DATA.value]
+            self.labelAttrModel.update_layout()
             self.ui.inputLineEdit.clear()
 
         self.ui.inputLineEdit.blockSignals(False)

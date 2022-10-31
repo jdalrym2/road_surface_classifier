@@ -59,7 +59,9 @@ class Sqlite3Interface():
             'class': self.class_map.get(int(row['class_num']), 'Unknown'),
             'chip_path': pathlib.Path(row['chip_path']),
             'mask_path': pathlib.Path(row['mask_path']),
-            'obscuration': int(row['obscuration'])
+            'obscuration': int(row['obscuration']),
+            'no_data': int(row['no_data']),
+            'bad_detect': int(row['bad_detect'])
         }
 
     def set_feature_obscuration(self, index: int, obsc: int) -> None:
@@ -72,6 +74,28 @@ class Sqlite3Interface():
         """
         assert -1 <= obsc <= 10
         sql, sql_args = self._sql_set_obscurity_attr(index, obsc)
+        self._sql_execute(sql, sql_args, fetch=False)
+
+    def set_feature_no_data(self, index: int, nd: bool) -> None:
+        """
+        Set "no data" attribute of a feature based on index
+
+        Args:
+            index (int): Feature index
+            nd (bool): No_data value. True for "no data"
+        """
+        sql, sql_args = self._sql_set_no_data_attr(index, nd)
+        self._sql_execute(sql, sql_args, fetch=False)
+
+    def set_feature_bad_detect(self, index: int, bd: bool) -> None:
+        """
+        Set "bad detect" attribute of a feature based on index
+
+        Args:
+            index (int): Feature index
+            bd (bool): "Bad Detect" value. True for "bad detect"
+        """
+        sql, sql_args = self._sql_set_bad_detect_attr(index, bd)
         self._sql_execute(sql, sql_args, fetch=False)
 
     def _sql_execute(self,
@@ -118,6 +142,18 @@ class Sqlite3Interface():
     def _sql_set_obscurity_attr(idx: int, obsc: int) -> Tuple[str, List[Any]]:
         return 'UPDATE features SET obscuration = ? WHERE [index] = ?;', [
             obsc, idx
+        ]
+
+    @staticmethod
+    def _sql_set_no_data_attr(idx: int, nd: bool) -> Tuple[str, List[Any]]:
+        return 'UPDATE features SET no_data = ? WHERE [index] = ?;', [
+            int(nd), idx
+        ]
+
+    @staticmethod
+    def _sql_set_bad_detect_attr(idx: int, bd: bool) -> Tuple[str, List[Any]]:
+        return 'UPDATE features SET bad_detect = ? WHERE [index] = ?;', [
+            int(bd), idx
         ]
 
 
