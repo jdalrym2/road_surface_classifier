@@ -158,15 +158,16 @@ class Resnet18Decoder(nn.ModuleList):
 
 class MaskCNN(nn.Module):
 
-    def __init__(self, num_classes=2):
+    def __init__(self, num_classes=2, num_highways=4):
         super().__init__()
         self.encoder = Resnet18Encoder(in_channels=4)
         self.encoder2 = Resnet18Encoder(in_channels=3)
         self.decoder = Resnet18Decoder()
         self.avgpool = nn.AdaptiveAvgPool2d(output_size=(1, 1))
-        self.fc = nn.Linear(512, num_classes, bias=True)     # Resnet50: 2048
+        self.fc = nn.Linear(512 + num_highways, num_classes,
+                            bias=True)     # Resnet50: 2048
 
-    def forward(self, x):
+    def forward(self, x, hwy):
 
         # Image -> Features
         y = self.encoder(x)
@@ -182,6 +183,10 @@ class MaskCNN(nn.Module):
         x = self.encoder2(x)
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
+
+        # Append highway info before fc layer
+        x = torch.concat((x, hwy), dim=1)
+
         z = self.fc(x)
 
         return y, z
@@ -192,8 +197,9 @@ if __name__ == '__main__':
     model = MaskCNN()
 
     inp = torch.rand((1, 4, 256, 256))
+    inp2 = torch.rand((1, 4))
 
-    x, y = model(inp)
+    x, y = model(inp, inp2)
     print(y)
 
     inp = inp[0, :3, :, :]

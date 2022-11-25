@@ -263,12 +263,13 @@ def plot_confusion_matrix(model_path: pathlib.Path,
 
     # Get truth and predictions using the dataloader
     y_true_l, y_pred_l = [], []
-    for x, features in tqdm(iter(val_dl)):
+    for x, features, h in tqdm(iter(val_dl)):
         xm = x[:, 3:, :, :]
         x = x[:, :3, :, :]
         y_true_l.append(features.numpy())
         # predict with the model
-        y_pred = torch.argmax(model(x.to(device), xm.to(device))[1],
+        y_pred = torch.argmax(model(x.to(device), xm.to(device),
+                                    h.to(device))[1],
                               axis=1).cuda()     # type: ignore
         y_pred_l.append(y_pred.cpu().numpy())
     y_true = np.concatenate(y_true_l)
@@ -288,7 +289,7 @@ def plot_confusion_matrix(model_path: pathlib.Path,
 if __name__ == '__main__':
 
     results_dir = pathlib.Path(
-        '/home/jon/git/road_surface_classifier/results/20221003_044531Z')
+        '/home/jon/git/road_surface_classifier/results/20221026_045848Z')
     assert results_dir.is_dir()
 
     # Import dataset
@@ -296,7 +297,7 @@ if __name__ == '__main__':
     from data_augmentation import PreProcess
     preprocess = PreProcess()
     val_ds = RoadSurfaceDataset(
-        '/data/road_surface_classifier/dataset_simple/dataset_val.csv',
+        '/data/road_surface_classifier/rsc_naip_L17c/dataset_simple/dataset_val.csv',
         transform=preprocess)
     val_dl = DataLoader(val_ds, num_workers=16, batch_size=16, shuffle=True)
 

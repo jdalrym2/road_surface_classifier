@@ -7,6 +7,9 @@ from tqdm import tqdm
 
 from torch.utils.data import Dataset
 
+import torch
+from torch.nn.functional import one_hot
+
 
 class RoadSurfaceDataset(Dataset):
 
@@ -17,6 +20,7 @@ class RoadSurfaceDataset(Dataset):
         ims = []
         masks = []
         lbls = []
+        hwys = []
 
         print('Loading images from file...')
         n_idxs = len(df) if limit == -1 else min(limit, len(df))
@@ -39,6 +43,7 @@ class RoadSurfaceDataset(Dataset):
             ims.append(im)
             masks.append(mask)
             lbls.append(int(row.class_num))
+            hwys.append(int(row.highway_num))
 
         combined = [
             np.concatenate((im, mask), axis=2) for im, mask in zip(ims, masks)
@@ -46,10 +51,11 @@ class RoadSurfaceDataset(Dataset):
 
         self.stack = np.stack(combined, axis=0)
         self.lbls = lbls
+        self.hwys = one_hot(torch.Tensor(hwys).to(torch.int64), 4)
 
     def __len__(self):
         return self.stack.shape[0]
 
     def __getitem__(self, idx):
-        im, lbl = self.stack[idx, ...], self.lbls[idx]
-        return self.transform(im), lbl
+        im, lbl, hwy = self.stack[idx, ...], self.lbls[idx], self.hwys[idx]
+        return self.transform(im), lbl, hwy
