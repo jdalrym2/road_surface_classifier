@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from typing import Any, Optional, Dict
+
 from dataclasses import dataclass
+from typing import Any, Dict, Optional
+
 import requests
 
 
@@ -10,7 +12,7 @@ class USGSAPIResponse():
     request_id: int
     version: str
     data: Any
-    error_code: Optional[int]
+    error_code: Optional[str]
     error_message: Optional[str]
     raise_on_error: bool = True
 
@@ -23,7 +25,7 @@ class USGSAPIResponse():
 
     def raise_exc(self):
         if self.is_error():
-            raise RuntimeError('[%d]: %s' % self.error_code,
+            raise RuntimeError('[%s]: %s' % self.error_code,
                                self.error_message)
 
     @classmethod
