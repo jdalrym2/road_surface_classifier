@@ -25,8 +25,8 @@ class USGSAPIResponse():
 
     def raise_exc(self):
         if self.is_error():
-            raise RuntimeError('[%s]: %s' % self.error_code,
-                               self.error_message)
+            raise RuntimeError('[%s]: %s' %
+                               (self.error_code, self.error_message))
 
     @classmethod
     def from_response(cls, response: requests.Response) -> 'USGSAPIResponse':

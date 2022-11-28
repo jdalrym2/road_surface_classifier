@@ -23,4 +23,5 @@ class SceneSearchRequest(USGSAPIRequest):
                                         maxResults=self.max_results)
         if self.scene_filter is not None:
             out_dict['sceneFilter'] = self.scene_filter.to_dict()
+
         return out_dict
