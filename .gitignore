@@ -2,6 +2,7 @@
 *_wip\.py
 cache/
 .vscode
+.devcontainer
 *\.pyc
 data/
 *.code-workspace
