@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """ Dataset Preparation Utilities """
-from typing import Union, Tuple, overload
-import typing
+import pathlib
+from typing import Optional, Union, Tuple, overload
 
 import numpy as np
-from osgeo import ogr, osr
+from osgeo import gdal, ogr, osr
 
+gdal.UseExceptions()
 ogr.UseExceptions()
 
 
@@ -258,6 +259,247 @@ def wgs84_to_im(
         return ix, iy
     else:
         return ix_ar, iy_ar
+
+
+def map_to_pix(xform: list[float],
+               x_m: Union[float, list[float], np.ndarray],
+               y_m: Union[float, list[float], np.ndarray],
+               round: bool = True) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Convert x/y in map projection (WGS84: lon/lat) to pixel x, y coordinates
+
+    Args:
+        xform (list[float]): Geotransform to use.
+        x_m (Union[float, list[float], np.ndarray]): Map x-coordinates in WGS84 (i.e. longitude)
+        y_m (Union[float, list[float], np.ndarray]): Map y-coordinates in WGS84 (i.e. latitude)
+        round (bool, optional): Whether or not to round the result and return integers.
+            Defaults to True.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Output x, y arrays in pixel coordinates.
+    """
+
+    # Input validation, either both float or both lists
+    assert not (isinstance(x_m, float) ^ isinstance(y_m, float))
+    if isinstance(x_m, float):
+        x_m = [x_m]
+    if isinstance(y_m, float):
+        y_m = [y_m]
+    x_m, y_m = np.array(x_m), np.array(y_m)
+    assert x_m.ndim == y_m.ndim == 1
+    assert len(x_m) == len(y_m)
+
+    # Do the math!
+    det = 1 / (xform[1] * xform[5] - xform[2] * xform[4])
+    x_p = det * (xform[5] * (x_m - xform[0]) - xform[2] * (y_m - xform[3]))
+    y_p = det * (xform[1] * (y_m - xform[3]) - xform[4] * (x_m - xform[0]))
+
+    # Round pixel values, if desired
+    if round:
+        x_p, y_p = np.round(x_p).astype(int), np.round(y_p).astype(int)
+
+    # Return
+    return x_p, y_p
+
+
+def pix_to_map(
+    xform: list[float], x_p: Union[float, list[float], np.ndarray],
+    y_p: Union[float, list[float],
+               np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Convert pixel x, y coordinates to x/y in map projection (WGS84: lon/lat)
+
+    Args:
+        xform (list[float]): Geotransform to use.
+        x_p (Union[float, list[float], np.ndarray]): Pixel x-coordinates
+        y_p (Union[float, list[float], np.ndarray]): Pixel y-coordinates
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Output x, y arrays in map coordinates (WGS84: lon, lat).
+    """
+    # Input validation, either both float or both lists
+    assert not (isinstance(x_p, float) ^ isinstance(y_p, float))
+    if not isinstance(x_p, (list, tuple, np.ndarray)):
+        x_p = [x_p]
+    if not isinstance(y_p, (list, tuple, np.ndarray)):
+        y_p = [y_p]
+    x_p, y_p = np.array(x_p), np.array(y_p)
+    assert x_p.ndim == y_p.ndim == 1
+    assert len(x_p) == len(y_p)
+
+    # Do the math!
+    x_m = xform[0] + xform[1] * x_p + xform[2] * y_p
+    y_m = xform[3] + xform[4] * x_p + xform[5] * y_p
+
+    # Return
+    return x_m, y_m
+
+
+# Map of GDAL datatypes to numpy datatypes
+GDAL_TO_NUMPY_MAP = {
+    gdal.GDT_Byte: np.uint8,
+    gdal.GDT_UInt16: np.uint16,
+    gdal.GDT_UInt32: np.uint32,
+    gdal.GDT_Int16: np.int16,
+    gdal.GDT_Int32: np.int32,
+    gdal.GDT_Float32: np.float32,
+    gdal.GDT_Float64: np.float64,
+    gdal.GDT_CInt16: np.complex128,
+    gdal.GDT_CInt32: np.complex128,
+    gdal.GDT_CFloat32: np.complex128,
+    gdal.GDT_CFloat64: np.complex128,
+    gdal.GDT_Unknown: np.float64,
+}
+NUMPY_TO_GDAL_MAP = dict([(v, k) for k, v in GDAL_TO_NUMPY_MAP.items()])
+
+# Map of file extensions to GDAL formats
+EXT_TO_FORMAT_MAP = {'.tif': 'GTiff', '.png': 'PNG'}
+
+
+def imread(path: Union[str, pathlib.Path],
+           x_off: int = 0,
+           y_off: int = 0,
+           w: Optional[int] = None,
+           h: Optional[int] = None) -> np.ndarray:
+    """
+    Read in an image using GDAL
+
+    Args:
+        path (str): Path to image file.
+        x_off (int, optional): X- offset to read image (top-left corner). Defaults to 0.
+        y_off (int, optional): Y- offset to read image (top-left corner). Defaults to 0.
+        w (Optional[int], optional): Width to read in. If None, defaults to the remainder of the image. Defaults to None.
+        h (Optional[int], optional): Height to read in. If None, defaults to the remainder of the image. Defaults to None.
+
+    Returns:
+        np.ndarray: Loaded image, as a numpy array
+    """
+    # Open image as GDAL dataset, read only
+    ds: gdal.Dataset = gdal.Open(str(path), gdal.GA_ReadOnly)
+
+    # Ensure there are rasters to read
+    assert ds.RasterCount > 0
+
+    # Get the first band, figure out the datatype
+    band: gdal.Band = ds.GetRasterBand(1)
+    dt = GDAL_TO_NUMPY_MAP[band.DataType]
+
+    # Determine image dimensions, and pre-allocate image
+    im_w = w if w is not None else ds.RasterXSize - x_off
+    im_h = h if h is not None else ds.RasterYSize - y_off
+    im = np.empty((im_h, im_w, ds.RasterCount), dtype=dt)
+
+    # Read the band
+    im[:, :, 0] = band.ReadAsArray(x_off, y_off, w, h)
+    band = None     # type: ignore
+
+    # Read the remaining bands
+    for ii in range(1, ds.RasterCount):
+        band = ds.GetRasterBand(ii + 1)
+        im[:, :, ii] = band.ReadAsArray(x_off, y_off, w, h)
+        band = None     # type: ignore
+
+    # Profit
+    return im
+
+
+def imread_geotransform(path: Union[str, pathlib.Path],
+                        x_off: int = 0,
+                        y_off: int = 0) -> Tuple:
+    """
+    Compute geotransform of a portion of an image
+
+    Args:
+        path (str): Path to image file.
+        x_off (int, optional): X- offset in image (top-left corner). Defaults to 0.
+        y_off (int, optional): Y- offset to read image (top-left corner). Defaults to 0.
+
+    Returns:
+        Tuple: Computed geotransform
+    """
+    # Open image as GDAL dataset, read only
+    ds: gdal.Dataset = gdal.Open(str(path), gdal.GA_ReadOnly)
+
+    # Get geotransform
+    xform: Tuple = ds.GetGeoTransform()
+
+    # Return for trival case
+    if x_off == 0 and y_off == 0:
+        return xform
+
+    # Parse geotransform, we don't need the x- or y- offsets
+    _, pw, rr, _, cr, ph = xform
+
+    # Compute x / y offsets
+    x_off, y_off = [e[0].item() for e in pix_to_map(list(xform), x_off, y_off)]
+
+    # Return new geotransform
+    return x_off, pw, rr, y_off, cr, ph
+
+
+def imread_srs(path: Union[str, pathlib.Path]) -> str:
+    """
+    Get the spatial reference system for a raster given its path
+
+    Args:
+        path (Union[str, pathlib.Path]): Path to image
+
+    Returns:
+        srs: Spatial reference of the image as PROJ4 string
+    """
+    ds: gdal.Dataset = gdal.Open(str(path), gdal.GA_ReadOnly)
+    srs: osr.SpatialReference = ds.GetSpatialRef()
+    ds = None     # type: ignore
+    return srs.ExportToProj4()
+
+
+def imwrite(im: np.ndarray,
+            output_path: Union[str, pathlib.Path],
+            xform: Optional[Tuple] = None,
+            srs: Optional[str] = None) -> pathlib.Path:
+
+    # Get output path
+    output_path = pathlib.Path(output_path)
+    if output_path.exists():
+        raise FileExistsError('Path already exists! %s' %
+                              str(output_path.resolve()))
+
+    # Figure out dimensions to write
+    assert im.ndim in (2, 3)
+    im_h, im_w = im.shape[0], im.shape[1]
+    im_c = 1 if im.ndim == 2 else im.shape[2]
+
+    format = EXT_TO_FORMAT_MAP.get(output_path.suffix.lower())
+    if format is None:
+        raise ValueError('Unsupported format for extension: %s' %
+                         output_path.suffix)
+    dt = NUMPY_TO_GDAL_MAP.get(im.dtype.type)
+    if dt is None:
+        raise ValueError('Unsupported format for dtype: %s' % repr(im.dtype))
+    options = ['COMPRESS=LZW'] if format == 'GTiff' else []
+    driver: gdal.Driver = gdal.GetDriverByName(format)
+    out_ds: gdal.Dataset = driver.Create(str(output_path),
+                                         im_w,
+                                         im_h,
+                                         im_c,
+                                         dt,
+                                         options=options)
+
+    if xform is not None:
+        out_ds.SetGeoTransform(xform)
+    if srs is not None:
+        out_ds.SetProjection(srs)
+
+    for ii in range(im_c):
+        band: gdal.Band = out_ds.GetRasterBand(ii + 1)
+        band.WriteArray(im[:, :, ii])
+        band = None     # type: ignore
+
+    out_ds.FlushCache()
+    out_ds = None     # type: ignore
+
+    # Return path we saved to
+    return output_path
 
 
 def get_length_m(wkt_str: str) -> float:
