@@ -48,8 +48,11 @@ if __name__ == '__main__':
     # Keep only columns we want
     osm_df = osm_df[['osm_id', 'class_num', 'chip_path', 'mask_path']]
 
+    # Shuffle!
+    osm_df = osm_df.sample(frac=1, random_state=42).reset_index(drop=True)
+
     # Add column for obscuration amount
-    osm_df = osm_df.assign(obscuration=-1)
+    osm_df = osm_df.assign(obscuration=-1, no_data=0, bad_detect=0)
 
     # Read in class CSV
     print('Parsing class CSV...')

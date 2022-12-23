@@ -12,6 +12,9 @@ dependencies:
   - pytz
   - requests
 
+  # Label Helper GUI
+  - pyqt[version'>=5,<6']
+
   # AWS
   - boto3
 
