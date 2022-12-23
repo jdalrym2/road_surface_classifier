@@ -29,6 +29,9 @@ def image_to_pixmap(image_path: pathlib.Path) -> QPixmap:
         format = QImage.Format_Grayscale8
     else:
         h, w, c = im.shape
+        if c == 4:
+            im = np.array(im[..., :3])
+            c = 3
         format = QImage.Format_RGB888
     q_img = QImage(im, w, h, c * w, format)
     return QPixmap.fromImage(q_img)

@@ -42,11 +42,13 @@ COPY --from=conda --chmod=0755 /venv /venv/
 ENV GDAL_DATA=/venv/share/gdal/
 ENV LD_LIBRARY_PATH=/venv/lib/
 
+# libgl1-mesa-glx needed for GUIs only
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
     apt-get install -y \
     vim \
     git \
-    sudo && \
+    sudo \
+    libgl1-mesa-glx && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd --gid $USER_GID $USERNAME && \
     useradd --uid $USER_UID --gid $USER_GID --shell /bin/bash -m $USERNAME && \
