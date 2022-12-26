@@ -197,7 +197,7 @@ class Controller:
                 self.load_image_by_index(g_val)
             finally:
                 self.ui.inputLineEdit.clear()
-        elif v.startswith('o'):
+        elif v.startswith('o') and v != 'oo':
             try:
                 o_val = int(v[1:])
             except ValueError:
@@ -232,7 +232,7 @@ class Controller:
         elif v == 'ns':
             self.skip(forward=True)
             self.ui.inputLineEdit.clear()
-        elif v == 'nn':
+        elif v == 'nn' or v == 'oo':
             self.labelAttrModel.attr_dict[KeyEnum.OBSCURATION.value] = 0
             self.labelAttrModel.update_layout()
             self.load_next_image()
