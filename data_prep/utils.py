@@ -477,26 +477,35 @@ def imwrite(im: np.ndarray,
     if dt is None:
         raise ValueError('Unsupported format for dtype: %s' % repr(im.dtype))
     options = ['COMPRESS=LZW'] if format == 'GTiff' else []
-    driver: gdal.Driver = gdal.GetDriverByName(format)
-    out_ds: gdal.Dataset = driver.Create(str(output_path),
-                                         im_w,
-                                         im_h,
-                                         im_c,
-                                         dt,
-                                         options=options)
 
-    if xform is not None:
-        out_ds.SetGeoTransform(xform)
-    if srs is not None:
-        out_ds.SetProjection(srs)
+    try:
+        mem_driver: gdal.Driver = gdal.GetDriverByName('MEM')
+        mem_ds: gdal.Dataset = mem_driver.Create('',
+                                                 im_w,
+                                                 im_h,
+                                                 im_c,
+                                                 dt,
+                                                 options=options)
+        if xform is not None:
+            mem_ds.SetGeoTransform(xform)
+        if srs is not None:
+            mem_ds.SetProjection(srs)
 
-    for ii in range(im_c):
-        band: gdal.Band = out_ds.GetRasterBand(ii + 1)
-        band.WriteArray(im[:, :, ii])
-        band = None     # type: ignore
+        for ii in range(im_c):
+            band: gdal.Band = mem_ds.GetRasterBand(ii + 1)
+            if im.ndim > 2:
+                band.WriteArray(im[:, :, ii])
+            else:
+                band.WriteArray(im)
+            band = None     # type: ignore
 
-    out_ds.FlushCache()
-    out_ds = None     # type: ignore
+        out_driver: gdal.Driver = gdal.GetDriverByName(format)
+        out_ds: gdal.Dataset = out_driver.CreateCopy(str(output_path), mem_ds)
+        out_ds.FlushCache()
+        out_ds = None     # type: ignore
+
+    finally:
+        mem_ds = None     # type: ignore
 
     # Return path we saved to
     return output_path

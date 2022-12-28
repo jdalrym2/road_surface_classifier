@@ -7,4 +7,5 @@ cache/
 data/
 *.code-workspace
 *.tar.gz
+*.npz
 results
