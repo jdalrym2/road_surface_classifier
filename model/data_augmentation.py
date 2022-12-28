@@ -21,11 +21,14 @@ class DataAugmentation(nn.Module):
             kornia.augmentation.ColorJitter(0.1, 0.1, 0.1, 0.1))
 
     @torch.no_grad()
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+            self, x: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x_aug = self.transform_pos(x)
-        im_aug = self.transform_color(x_aug[:, :3, :, :])
-        m_aug = x_aug[:, 3:, :, :]
-        return im_aug, m_aug
+        im_aug = self.transform_color(x_aug[:, 0:3, :, :])
+        m_aug = x_aug[:, 3:4, :, :]
+        pm_aug = x_aug[:, 4:5, :, :]
+        return im_aug, m_aug, pm_aug
 
 
 class PreProcess(nn.Module):

@@ -17,7 +17,7 @@ class PLMaskCNN(pl.LightningModule):
 
     def __init__(
         self,
-        weights_path='/data/road_surface_classifier/dataset_new_simple/class_weights.csv'
+        weights_path='/data/road_surface_classifier/dataset/class_weights.csv'
     ):
         super().__init__()
 
@@ -36,9 +36,9 @@ class PLMaskCNN(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, z = batch
-        x, xm = self.transform(x)
+        x, xm, xpm = self.transform(x)
         y_hat, z_hat = self.forward(x, xm)
-        loss1 = self.loss(y_hat, xm)
+        loss1 = self.loss(y_hat, xpm)
         loss2 = functional.cross_entropy(z_hat, z, weight=self.weights)
         loss = 1e-1 * loss1 + loss2
         self.log('train_loss1', loss1, on_step=False, on_epoch=True)
@@ -48,10 +48,14 @@ class PLMaskCNN(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         x, z = batch
-        xm = x[:, 3:, :, :]
-        x = x[:, :3, :, :]
+
+        # Create image, mask, probmask (be careful, order matters!)
+        xm = x[:, 3:4, :, :]
+        xpm = x[:, 4:5, :, :]
+        x = x[:, 0:3, :, :]
+
         y_hat, z_hat = self.forward(x, xm)
-        loss1 = self.loss(y_hat, xm)
+        loss1 = self.loss(y_hat, xpm)
         loss2 = functional.cross_entropy(z_hat, z, weight=self.weights)
         loss = 1e-1 * loss1 + loss2
         self.log('val_loss1', loss1)
@@ -60,5 +64,5 @@ class PLMaskCNN(pl.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        lr = 5e-6     # Orig: 1e-4
+        lr = 1e-4
         return torch.optim.Adam(self.parameters(), lr=lr)

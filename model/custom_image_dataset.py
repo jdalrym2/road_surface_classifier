@@ -16,18 +16,22 @@ class RoadSurfaceDataset(Dataset):
 
         ims = []
         masks = []
+        probmasks = []
         lbls = []
 
         print('Loading images from file...')
         n_idxs = len(df) if limit == -1 else min(limit, len(df))
         for idx in tqdm(range(n_idxs)):
             row = df.iloc[idx]
+
+            # Image
             with PIL.Image.open(row.chip_path) as pim:
                 im = np.array(pim)
             tn = im.shape[2] if im.ndim == 3 else 1
             if tn > n_channels:
                 im = im[:, :, :n_channels]
 
+            # Mask
             with PIL.Image.open(row.mask_path) as pmask:
                 mask = np.array(pmask)
             if mask.ndim == 2:
@@ -36,12 +40,23 @@ class RoadSurfaceDataset(Dataset):
             if tn > 1:
                 mask = mask[:, :, 0][:, :, np.newaxis]
 
+            # Prob mask
+            with PIL.Image.open(row.probmask_path) as pmask:
+                probmask = np.array(pmask)
+            if probmask.ndim == 2:
+                probmask = probmask[:, :, np.newaxis]
+            tn = im.shape[2]
+            if tn > 1:
+                probmask = probmask[:, :, 0][:, :, np.newaxis]
+
             ims.append(im)
             masks.append(mask)
+            probmasks.append(mask)
             lbls.append(int(row.class_num))
 
         combined = [
-            np.concatenate((im, mask), axis=2) for im, mask in zip(ims, masks)
+            np.concatenate((im, mask, probmask), axis=2)
+            for im, mask, probmask in zip(ims, masks, probmasks)
         ]
 
         self.stack = np.stack(combined, axis=0)
