@@ -29,6 +29,7 @@ dependencies:
   - torchvision
   - pytorch-lightning
   - kornia
+  - mlflow
 
   # Development / Testing:
   - jupyter

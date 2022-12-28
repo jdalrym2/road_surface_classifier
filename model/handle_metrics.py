@@ -257,6 +257,26 @@ def plot_confusion_matrix(model_path: pathlib.Path,
     model.to(device)
     model.eval()
 
+    plot_confusion_matrix_model(model, val_dl, output_path, labels)
+
+
+def plot_confusion_matrix_model(model,
+                                val_dl: DataLoader,
+                                output_path: pathlib.Path,
+                                labels: Optional[List[str]] = None):
+    """
+    Plot a confusion matrix for a model.
+
+    Args:
+        model (Unknown): Preloaded model
+        val_dl (DataLoader): Path to validation DataLoader to use
+        output_path (pathlib.Path): Plot output path
+        labels (Optional[List[str]], optional): Class labels. If not provided,
+            will be attempted to be extracted from the model. Otherwise, non-specific
+            values will be used. Defaults to None.
+    """
+    model.to(device)
+
     # Try to get labels
     if labels is None:
         labels = model.__dict__.get('labels')
@@ -264,8 +284,9 @@ def plot_confusion_matrix(model_path: pathlib.Path,
     # Get truth and predictions using the dataloader
     y_true_l, y_pred_l = [], []
     for x, features in tqdm(iter(val_dl)):
-        xm = x[:, 3:, :, :]
-        x = x[:, :3, :, :]
+        xm = x[:, 3:4, :, :]
+        # xpm = x[:, 4:5, :, :]
+        x = x[:, 0:3, :, :]
         y_true_l.append(features.numpy())
         # predict with the model
         y_pred = torch.argmax(model(x.to(device), xm.to(device))[1],

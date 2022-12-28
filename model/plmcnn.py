@@ -17,11 +17,19 @@ class PLMaskCNN(pl.LightningModule):
 
     def __init__(
         self,
-        weights_path='/data/road_surface_classifier/dataset/class_weights.csv'
+        learning_rate=1e-4,
+        loss_lambda=1e-1,
     ):
         super().__init__()
 
-        weights_df = pd.read_csv(weights_path)
+        # Hyperparameters
+        self.learning_rate = learning_rate
+        self.loss_lambda = loss_lambda
+
+        self.save_hyperparameters()
+
+        weights_df = pd.read_csv(
+            '/data/road_surface_classifier/dataset/class_weights.csv')
 
         self.weights = torch.tensor(weights_df['weight']).float().cuda()
         self.labels = list(weights_df['class_name'])
@@ -40,10 +48,15 @@ class PLMaskCNN(pl.LightningModule):
         y_hat, z_hat = self.forward(x, xm)
         loss1 = self.loss(y_hat, xpm)
         loss2 = functional.cross_entropy(z_hat, z, weight=self.weights)
-        loss = 1e-1 * loss1 + loss2
-        self.log('train_loss1', loss1, on_step=False, on_epoch=True)
-        self.log('train_loss2', loss2, on_step=False, on_epoch=True)
-        self.log('train_loss', loss, on_step=False, on_epoch=True)
+        loss = self.loss_lambda * loss1 + loss2
+        self.log_dict(
+            {
+                'train_loss_im': loss1,
+                'train_loss_cl': loss2,
+                'train_loss': loss,
+            },
+            on_step=True,
+            on_epoch=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -57,12 +70,17 @@ class PLMaskCNN(pl.LightningModule):
         y_hat, z_hat = self.forward(x, xm)
         loss1 = self.loss(y_hat, xpm)
         loss2 = functional.cross_entropy(z_hat, z, weight=self.weights)
-        loss = 1e-1 * loss1 + loss2
-        self.log('val_loss1', loss1)
-        self.log('val_loss2', loss2)
-        self.log('val_loss', loss)
+        loss = self.loss_lambda * loss1 + loss2
+
+        self.log_dict(
+            {
+                'val_loss_im': loss1,
+                'val_loss_cl': loss2,
+                'val_loss': loss,
+            },
+            on_step=True,
+            on_epoch=True)
         return loss
 
     def configure_optimizers(self):
-        lr = 1e-4
-        return torch.optim.Adam(self.parameters(), lr=lr)
+        return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
