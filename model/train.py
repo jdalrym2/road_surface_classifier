@@ -11,6 +11,11 @@ import pathlib
 from datetime import datetime
 
 import torch
+
+import torch.multiprocessing
+
+torch.multiprocessing.set_sharing_strategy('file_system')
+
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -21,7 +26,7 @@ from pytorch_lightning.loggers import CSVLogger, MLFlowLogger
 from plmcnn import PLMaskCNN
 
 from data_augmentation import PreProcess
-from custom_image_dataset import RoadSurfaceDataset
+from road_surface_dataset import RoadSurfaceDataset
 from handle_metrics import plot_confusion_matrix_model
 
 if __name__ == '__main__':

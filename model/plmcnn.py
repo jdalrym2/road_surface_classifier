@@ -18,25 +18,28 @@ class PLMaskCNN(pl.LightningModule):
     def __init__(
         self,
         learning_rate=1e-4,
-        loss_lambda=1e-1,
+        loss_lambda=0.1,
     ):
         super().__init__()
 
         # Hyperparameters
         self.learning_rate = learning_rate
         self.loss_lambda = loss_lambda
-
         self.save_hyperparameters()
 
+        # Load class weights
+        # FIXME: there should be a less hardcod-y way to handles this
         weights_df = pd.read_csv(
             '/data/road_surface_classifier/dataset/class_weights.csv')
 
-        self.weights = torch.tensor(weights_df['weight']).float().cuda()
-        self.labels = list(weights_df['class_name'])
+        # Add obscuration class with a weight of 1
+        # FIXME: handle this in a better way
+        self.labels = list(weights_df['class_name']) + ['Obscured']
+        self.weights = torch.tensor(list(weights_df['weight']) +
+                                    [1]).float().cuda()
+
         self.transform = DataAugmentation()
-
         self.loss = DiceBCELoss()
-
         self.model = MaskCNN(num_classes=len(self.labels))
 
     def forward(self, x, xm):
@@ -63,9 +66,9 @@ class PLMaskCNN(pl.LightningModule):
         x, z = batch
 
         # Create image, mask, probmask (be careful, order matters!)
-        xm = x[:, 3:4, :, :]
-        xpm = x[:, 4:5, :, :]
-        x = x[:, 0:3, :, :]
+        xm = x[:, 4:5, :, :]
+        xpm = x[:, 5:6, :, :]
+        x = x[:, 0:4, :, :]
 
         y_hat, z_hat = self.forward(x, xm)
         loss1 = self.loss(y_hat, xpm)

@@ -160,8 +160,8 @@ class MaskCNN(nn.Module):
 
     def __init__(self, num_classes=2):
         super().__init__()
-        self.encoder = Resnet18Encoder(in_channels=4)
-        self.encoder2 = Resnet18Encoder(in_channels=3)
+        self.encoder = Resnet18Encoder(in_channels=5)
+        self.encoder2 = Resnet18Encoder(in_channels=4)
         self.decoder = Resnet18Decoder()
         self.avgpool = nn.AdaptiveAvgPool2d(output_size=(1, 1))
         self.fc = nn.Linear(512, num_classes, bias=True)     # Resnet50: 2048
@@ -176,7 +176,9 @@ class MaskCNN(nn.Module):
         y = y[:, 0:1, ...]
 
         # Adjust image from mask
-        x = torch.multiply(x[:, :3, ...], y)
+        # NOTE: image is (0, 1, 2, 3). Input mask is (4),
+        # so we only fetch the former
+        x = torch.multiply(x[:, 0:4, ...], y)
 
         # Updated Image -> Features
         x = self.encoder2(x)

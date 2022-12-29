@@ -284,15 +284,17 @@ def plot_confusion_matrix_model(model,
     # Get truth and predictions using the dataloader
     y_true_l, y_pred_l = [], []
     for x, features in tqdm(iter(val_dl)):
-        xm = x[:, 3:4, :, :]
+        xm = x[:, 4:5, :, :]
         # xpm = x[:, 4:5, :, :]
-        x = x[:, 0:3, :, :]
+        x = x[:, 0:4, :, :]
         y_true_l.append(features.numpy())
         # predict with the model
         y_pred = torch.argmax(model(x.to(device), xm.to(device))[1],
                               axis=1).cuda()     # type: ignore
         y_pred_l.append(y_pred.cpu().numpy())
+
     y_true = np.concatenate(y_true_l)
+    y_true = np.argmax(y_true, axis=1)
     y_pred = np.concatenate(y_pred_l)
 
     # Generate and save the confusion matrix
@@ -313,7 +315,7 @@ if __name__ == '__main__':
     assert results_dir.is_dir()
 
     # Import dataset
-    from custom_image_dataset import RoadSurfaceDataset
+    from model.road_surface_dataset import RoadSurfaceDataset
     from data_augmentation import PreProcess
     preprocess = PreProcess()
     val_ds = RoadSurfaceDataset(
