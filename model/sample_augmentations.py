@@ -59,7 +59,8 @@ def sample_augmentations(ds, transform, grid=5):
 if __name__ == '__main__':
 
     from road_surface_dataset import RoadSurfaceDataset
-    from data_augmentation import PreProcess, DataAugmentation
+    from preprocess import PreProcess
+    from data_augmentation import DataAugmentation
 
     train_ds = RoadSurfaceDataset(
         '/data/road_surface_classifier/dataset/dataset_train.csv',

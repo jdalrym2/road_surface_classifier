@@ -316,7 +316,7 @@ if __name__ == '__main__':
 
     # Import dataset
     from model.road_surface_dataset import RoadSurfaceDataset
-    from data_augmentation import PreProcess
+    from preprocess import PreProcess
     preprocess = PreProcess()
     val_ds = RoadSurfaceDataset(
         '/data/road_surface_classifier/dataset_simple/dataset_val.csv',

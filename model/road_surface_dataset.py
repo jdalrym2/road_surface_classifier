@@ -8,6 +8,10 @@ import PIL.Image
 import torch
 from torch.utils.data import Dataset
 
+import torch.multiprocessing
+
+torch.multiprocessing.set_sharing_strategy('file_system')
+
 
 class RoadSurfaceDataset(Dataset):
 
@@ -16,8 +20,6 @@ class RoadSurfaceDataset(Dataset):
         # Load dataframe, interpret lenght
         self.df = pd.read_csv(df_path)
         self.n_idxs = len(self.df) if limit == -1 else min(limit, len(self.df))
-
-        print(self.n_idxs)
 
         # Number of channels in the image
         self.n_channels = n_channels

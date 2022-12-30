@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from typing import Tuple, Union
-import numpy as np
+from typing import Tuple
 import torch
 import torch.nn as nn
 import kornia
@@ -50,20 +49,3 @@ class DataAugmentation(nn.Module):
         return im_aug, m_aug, pm_aug
 
 
-class PreProcess(nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @torch.no_grad()
-    def forward(self, x) -> torch.Tensor:
-
-        # NOTE: applies to full 6-channel input (image + mask + probmask)
-
-        # Convert to tensor
-        x = kornia.utils.image_to_tensor(x, keepdim=True).float()
-
-        # Normalize between 0 and 1
-        x = torch.divide(x, 255.)
-
-        return x

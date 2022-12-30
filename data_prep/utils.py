@@ -453,6 +453,69 @@ def imread_srs(path: Union[str, pathlib.Path]) -> str:
     return srs.ExportToProj4()
 
 
+def imread_dims(path: Union[str, pathlib.Path]) -> Tuple[int, int]:
+    """
+    Get the dimensions a raster given its path
+
+    Args:
+        path (Union[str, pathlib.Path]): Path to image
+
+    Returns:
+        Tuple[int, int]: Image height, width
+    """
+    ds: gdal.Dataset = gdal.Open(str(path), gdal.GA_ReadOnly)
+    h, w = ds.RasterYSize, ds.RasterXSize
+    ds = None     # type: ignore
+    return h, w
+
+
+def imread_geometry(path: Union[str, pathlib.Path],
+                    wgs84: bool = False) -> str:
+    """
+    Get the footprint a raster given its path.
+    
+    If wgs84 = False: The result is returned in the raster's native coordinate system.
+    Else the result is return in ESPG:4326 (WGS-84) coordinates.
+
+    Args:
+        path (Union[str, pathlib.Path]): Path to image
+
+    Returns:
+        str: WKT string for the raster's geometry
+    """
+    # Get dimensions & geotransform
+    h, w = imread_dims(path)
+    xform = imread_geotransform(path)
+
+    # Convert to map coordinates
+    map_x, map_y = pix_to_map(list(xform), [0, w, w, 0, 0], [0, 0, h, h, 0])
+
+    # Create geometry from coordinates
+    poly = ogr.Geometry(ogr.wkbPolygon)
+    ring = ogr.Geometry(ogr.wkbLinearRing)
+    [ring.AddPoint_2D(x, y) for x, y in zip(map_x, map_y)]
+    poly.AddGeometry(ring)
+
+    # If desired, convert to WGS-84
+    if wgs84:
+        # Raster spatial reference
+        srs = osr.SpatialReference()
+        srs.ImportFromProj4(imread_srs(path))
+        srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+
+        # WGS-84 spatial reference
+        srs_dst = osr.SpatialReference()
+        srs_dst.ImportFromEPSG(4326)
+        srs_dst.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+
+        # Transform!
+        trans = osr.CoordinateTransformation(srs, srs_dst)
+        poly.Transform(trans)
+
+    # Return WKT-string for image footprint
+    return poly.ExportToWkt()
+
+
 def imwrite(im: np.ndarray,
             output_path: Union[str, pathlib.Path],
             xform: Optional[Tuple] = None,
