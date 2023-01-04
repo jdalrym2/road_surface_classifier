@@ -285,14 +285,14 @@ def map_to_pix(xform: list[float],
         x_m = [x_m]
     if isinstance(y_m, float):
         y_m = [y_m]
-    x_m, y_m = np.array(x_m), np.array(y_m)
-    assert x_m.ndim == y_m.ndim == 1
-    assert len(x_m) == len(y_m)
+    x, y = np.array(x_m), np.array(y_m)
+    assert x.ndim == y.ndim == 1
+    assert len(x) == len(y)
 
     # Do the math!
     det = 1 / (xform[1] * xform[5] - xform[2] * xform[4])
-    x_p = det * (xform[5] * (x_m - xform[0]) - xform[2] * (y_m - xform[3]))
-    y_p = det * (xform[1] * (y_m - xform[3]) - xform[4] * (x_m - xform[0]))
+    x_p = det * (xform[5] * (x - xform[0]) - xform[2] * (y - xform[3]))
+    y_p = det * (xform[1] * (y - xform[3]) - xform[4] * (x - xform[0]))
 
     # Round pixel values, if desired
     if round:

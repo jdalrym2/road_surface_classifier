@@ -25,8 +25,8 @@ def sample_augmentations(ds, transform, grid=5):
                            figsize=(3 * 4, 3 * grid))
     ax = ax.flatten()     # type: ignore
 
-    ax[0].imshow(im_np[..., (0, 1, 2)])
-    ax[1].imshow(im_np[..., (3, 0, 1)])
+    ax[0].imshow(im_np[..., (0, 1, 2)])     # type: ignore
+    ax[1].imshow(im_np[..., (3, 0, 1)])     # type: ignore
     ax[2].imshow(mask_np)
     ax[3].imshow(pmask_np)
 
@@ -43,8 +43,8 @@ def sample_augmentations(ds, transform, grid=5):
                                 -1).astype(np.uint8)
 
         # Plot it
-        ax[idx].imshow(im_aug_np[..., (0, 1, 2)])
-        ax[idx + 1].imshow(im_aug_np[..., (3, 0, 1)])
+        ax[idx].imshow(im_aug_np[..., (0, 1, 2)])     # type: ignore
+        ax[idx + 1].imshow(im_aug_np[..., (3, 0, 1)])     # type: ignore
         ax[idx + 2].imshow(m_aug_np)
         ax[idx + 3].imshow(pm_aug_np)
 

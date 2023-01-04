@@ -83,3 +83,74 @@ columns = ['osm_id', 'pred_label', *['pred_%s' % label for label in labels]]
 df = pd.DataFrame(output, columns=columns).set_index('osm_id')
 df.to_csv(
     '/nfs/taranis/naip/BOULDER_COUNTY_NAIP_2019_results_20221229_205449Z.csv')
+
+#%%
+import sqlite3
+import pandas as pd
+
+df = pd.read_csv(
+    '/nfs/taranis/naip/BOULDER_COUNTY_NAIP_2019_results_20221229_205449Z.csv'
+).set_index('osm_id')
+
+with sqlite3.connect(
+        'file:/nfs/taranis/naip/BOULDER_COUNTY_NAIP_2019.sqlite3?mode=ro',
+        uri=True) as con:
+    df2 = pd.read_sql('SELECT * FROM features;', con).set_index('osm_id')
+
+df = df.join(df2)
+df
+
+#%%
+from osgeo import gdal, ogr, osr
+
+gdal.UseExceptions()
+ogr.UseExceptions()
+
+# Create SRS (EPSG:4326: WGS-84 decimal degrees)
+srs = osr.SpatialReference()
+srs.ImportFromEPSG(4326)
+
+driver: ogr.Driver = ogr.GetDriverByName('GPKG')
+ds: ogr.DataSource = driver.CreateDataSource(
+    '/data/road_surface_classifier/BOULDER_COUNTY_NAIP_2019.gpkg')
+layer: ogr.Layer = ds.CreateLayer('data', srs=srs, geom_type=ogr.wkbLineString)
+
+osm_id_field = ogr.FieldDefn('osm_id', ogr.OFTInteger64)
+highway_field = ogr.FieldDefn('highway', ogr.OFTString)
+surface_true_field = ogr.FieldDefn('surface_t', ogr.OFTString)
+surface_pred_field = ogr.FieldDefn('surface_p', ogr.OFTString)
+paved_conf = ogr.FieldDefn('paved_c', ogr.OFSTFloat32)
+unpaved_conf = ogr.FieldDefn('unpaved_c', ogr.OFSTFloat32)
+obsc_conf = ogr.FieldDefn('obsc_c', ogr.OFSTFloat32)
+
+layer.CreateField(osm_id_field)
+layer.CreateField(highway_field)
+layer.CreateField(surface_true_field)
+layer.CreateField(surface_pred_field)
+layer.CreateField(paved_conf)
+layer.CreateField(unpaved_conf)
+layer.CreateField(obsc_conf)
+
+feature_defn = layer.GetLayerDefn()
+
+for osm_id, row in df.iterrows():
+
+    poly = ogr.CreateGeometryFromWkt(row['wkt'])
+
+    feat = ogr.Feature(feature_defn)
+
+    feat.SetGeometry(poly)
+    feat.SetField('osm_id', row.name)
+    feat.SetField('highway', row['highway_tag'])
+    feat.SetField('surface_t', row['surface_tag'])
+    feat.SetField('surface_p', row['pred_label'])
+    feat.SetField('paved_c', row['pred_paved'])
+    feat.SetField('unpaved_c', row['pred_unpaved'])
+    feat.SetField('obsc_c', row['pred_Obscured'])
+
+    layer.CreateFeature(feat)
+    poly = None
+    feat = None
+
+layer = None     # type: ignore
+ds = None     # type: ignore

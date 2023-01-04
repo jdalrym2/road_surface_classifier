@@ -71,7 +71,8 @@ for img_path in TEST_CASE_PATH.glob('*.mrf'):
         osm_id = way.id
 
         # Get nodes
-        nodes = [network.get_node_by_id(id) for id in way.nodes]
+        nodes = [network.get_node_by_id(id)
+                 for id in way.nodes]     # type: ignore
 
         # Get linestring geometry
         linestr = ogr.Geometry(ogr.wkbLineString)

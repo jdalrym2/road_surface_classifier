@@ -10,6 +10,7 @@ from torch.utils.data import Dataset
 
 import torch.multiprocessing
 
+# Prevents file descriptor errors when doing multiprocessing fetches
 torch.multiprocessing.set_sharing_strategy('file_system')
 
 
@@ -23,6 +24,9 @@ class RoadSurfaceDataset(Dataset):
 
         # Number of channels in the image
         self.n_channels = n_channels
+
+        # Number of classes
+        self.n_classes = self.df['class_num'].max()
 
         # Transformation object
         self.transform = transform
@@ -63,8 +67,8 @@ class RoadSurfaceDataset(Dataset):
         if tn > 1:
             probmask = probmask[:, :, 0][:, :, np.newaxis]
 
-        # Label
-        lbl = [0] * 3     # FIXME: variable number of classes
+        # Label (add one to number of classes to account for obscurations)
+        lbl = [0] * (self.n_classes + 1)
 
         # Get class idx
         c = int(row.class_num)

@@ -47,5 +47,3 @@ class DataAugmentation(nn.Module):
         pm_aug = x_aug[:, 5:6, :, :]
 
         return im_aug, m_aug, pm_aug
-
-
