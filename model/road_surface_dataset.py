@@ -26,7 +26,7 @@ class RoadSurfaceDataset(Dataset):
         self.n_channels = n_channels
 
         # Number of classes
-        self.n_classes = self.df['class_num'].max()
+        self.n_classes = self.df['class_num'].max() + 1
 
         # Transformation object
         self.transform = transform

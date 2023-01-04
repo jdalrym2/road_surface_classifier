@@ -8,22 +8,23 @@ os.environ["AWS_PROFILE"] = 'truenas'
 os.environ["MLFLOW_S3_ENDPOINT_URL"] = 'http://truenas.local:9807'
 
 import pathlib
+from typing import List, Type
 from datetime import datetime
 
-import torch
+import pandas as pd
 
+import torch
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import CSVLogger, MLFlowLogger
 
-#from plresnet50 import PLResnet50
 from plmcnn import PLMaskCNN
-
 from preprocess import PreProcess
 from road_surface_dataset import RoadSurfaceDataset
-from handle_metrics import plot_confusion_matrix_model
+from generate_artifacts.metrics_handler import MetricsHandler
+from generate_artifacts.confusion_matrix_handler import ConfusionMatrixHandler
 
 if __name__ == '__main__':
 
@@ -57,10 +58,12 @@ if __name__ == '__main__':
     preprocess = PreProcess()
     train_ds = RoadSurfaceDataset(
         '/data/road_surface_classifier/dataset/dataset_train.csv',
-        transform=preprocess)
+        transform=preprocess,
+        limit=500)
     val_ds = RoadSurfaceDataset(
         '/data/road_surface_classifier/dataset/dataset_val.csv',
-        transform=preprocess)
+        transform=preprocess,
+        limit=500)
 
     # Create data loaders.
     batch_size = 64
@@ -70,43 +73,49 @@ if __name__ == '__main__':
                           shuffle=True)
     val_dl = DataLoader(val_ds, num_workers=16, batch_size=batch_size)
 
+    # Labels and weights
+    # Load class weights
+    weights_df = pd.read_csv(
+        '/data/road_surface_classifier/dataset/class_weights.csv')
+
+    # NOTE: We add obscuration class with a weight of 1
+    labels = list(weights_df['class_name']) + ['Obscured']
+    weights = list(weights_df['weight']) + [1]
+
     # Model
-    model = PLMaskCNN()
+    model = PLMaskCNN(labels=labels, weights=weights)
     torch.save(model, save_dir / 'model.pth')
 
     # Trainer
     trainer = pl.Trainer(
         accelerator='gpu',
         devices=1,
-        max_epochs=1000,
+        max_epochs=1,
         callbacks=[checkpoint_callback, early_stopping_callback],
         logger=mlflow_logger)
 
     # Do the thing!
-    try:
-        trainer.fit(model, train_dataloaders=train_dl,
-                    val_dataloaders=val_dl)     # type: ignore
-    except KeyboardInterrupt:
-        print('Keyboard interrupt caught!')
-        pass
+    trainer.fit(model, train_dataloaders=train_dl,
+                val_dataloaders=val_dl)     # type: ignore
 
     # Upload best model
     mlflow_logger.experiment.log_artifact(mlflow_logger.run_id,
                                           checkpoint_callback.best_model_path)
 
     # Plot confusion matrix
-    try:
-        model.load_from_checkpoint(checkpoint_callback.best_model_path)
-        model.eval()
+    model.load_from_checkpoint(checkpoint_callback.best_model_path)
+    model.eval()
 
-        cm_path = save_dir / 'confusion_matrix.png'
-        plot_confusion_matrix_model(model, val_dl, cm_path)
-        # Upload best model
-        mlflow_logger.experiment.log_artifact(mlflow_logger.run_id,
-                                              str(cm_path))
-    except Exception:
-        print('Failed to create confusion matrix!')
-        raise
+    # Generate artifacts from model
+    metrics_handlers: List[Type[MetricsHandler]] = [ConfusionMatrixHandler]
+    for handler_class in metrics_handlers:
 
-    # Handle metrics
-    # generate_plots(save_dir, val_dl)
+        # Generate artifact
+        artifact_path = handler_class(save_dir, model, val_dl)()
+
+        # Upload artifact
+        if artifact_path is not None:
+            mlflow_logger.experiment.log_artifact(mlflow_logger.run_id,
+                                                  str(artifact_path))
+        else:
+            print('Skipping artifact upload.')

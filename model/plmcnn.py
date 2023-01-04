@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from typing import List
 import pandas as pd
 
 import torch
@@ -17,6 +18,8 @@ class PLMaskCNN(pl.LightningModule):
 
     def __init__(
         self,
+        labels,
+        weights,
         learning_rate=1e-4,
         loss_lambda=0.1,
     ):
@@ -27,28 +30,21 @@ class PLMaskCNN(pl.LightningModule):
         self.loss_lambda = loss_lambda
         self.save_hyperparameters()
 
-        # Load class weights
-        # FIXME: there should be a less hardcod-y way to handles this
-        weights_df = pd.read_csv(
-            '/data/road_surface_classifier/dataset/class_weights.csv')
-
-        # Add obscuration class with a weight of 1
-        # FIXME: handle this in a better way
-        self.labels = list(weights_df['class_name']) + ['Obscured']
-        self.weights = torch.tensor(list(weights_df['weight']) +
-                                    [1]).float().cuda()
+        # Set labels and weights for training
+        self.labels = labels
+        self.weights = torch.tensor(weights).float().cuda()
 
         self.transform = DataAugmentation()
         self.loss = DiceBCELoss()
         self.model = MaskCNN(num_classes=len(self.labels))
 
-    def forward(self, x, xm):
-        return self.model(torch.concat((x, xm), dim=1))
+    def forward(self, x):
+        return self.model(x)
 
     def training_step(self, batch, batch_idx):
         x, z = batch
-        x, xm, xpm = self.transform(x)
-        y_hat, z_hat = self.forward(x, xm)
+        x, xpm = self.transform(x)
+        y_hat, z_hat = self.forward(x)
         loss1 = self.loss(y_hat, xpm)
         loss2 = functional.cross_entropy(z_hat, z, weight=self.weights)
         loss = self.loss_lambda * loss1 + loss2
@@ -65,12 +61,11 @@ class PLMaskCNN(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         x, z = batch
 
-        # Create image, mask, probmask (be careful, order matters!)
-        xm = x[:, 4:5, :, :]
+        # Create image + mask, probmask (be careful, order matters!)
         xpm = x[:, 5:6, :, :]
-        x = x[:, 0:4, :, :]
+        x = x[:, 0:5, :, :]
 
-        y_hat, z_hat = self.forward(x, xm)
+        y_hat, z_hat = self.forward(x)
         loss1 = self.loss(y_hat, xpm)
         loss2 = functional.cross_entropy(z_hat, z, weight=self.weights)
         loss = self.loss_lambda * loss1 + loss2

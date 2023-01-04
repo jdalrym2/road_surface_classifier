@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """ Metrics handling code """
+# TODO: this is an old script we will deprecate at some point
+
 import pathlib
 import traceback
 from typing import List, Optional
@@ -9,7 +11,6 @@ import warnings
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from tqdm import tqdm
 
 import torch
@@ -90,12 +91,6 @@ def generate_plots(results_dir: pathlib.Path,
         print('Exception occurred looking for best model:')
         traceback.print_exc()
 
-    # Plot metrics
-    if csv_path_found:
-        plot_metrics(csv_path, results_dir / 'metrics_plot.png')
-    else:
-        print('Not generating metrics plot...')
-
     # Plot confusion matrix
     if model_path_found and best_model_found and val_dl is not None:
         plot_confusion_matrix(model_path=model_path,
@@ -116,31 +111,6 @@ def generate_plots(results_dir: pathlib.Path,
                      output_path=samples_dir)
     else:
         print('Not dumping validation samples.')
-
-
-def plot_metrics(csv_path: pathlib.Path, output_path: pathlib.Path) -> None:
-    """
-    Generate plots from metrics.csv file.
-
-    Args:
-        csv_path (pathlib.Path): Path to metrics.csv file to generate plots from
-        output_path (pathlib.Path): Output plot
-    """
-    # CSVLogger will have multiple rows per epoch, with only
-    # 1 non-NaN metric per row. This will collapse all the metrics
-    # together to one row per epoch
-    df = pd.read_csv(csv_path).groupby('epoch').mean()
-
-    # Drop the step column so we don't plot it
-    df = df.drop(columns=[
-        'step', 'train_loss1', 'train_loss2', 'val_loss1', 'val_loss2'
-    ])
-
-    # Generate plots!
-    fig, ax = plt.subplots()
-    df.plot(ax=ax, subplots=True, backend='matplotlib')
-    plt.savefig(str(output_path))
-    plt.close(fig)
 
 
 def dump_samples(model_path: pathlib.Path,

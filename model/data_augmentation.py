@@ -28,9 +28,7 @@ class DataAugmentation(nn.Module):
         self.transform_nir = nn.Sequential(ColorJitterNoHueSat(0.1, 0.1))
 
     @torch.no_grad()
-    def forward(
-            self, x: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
 
         # Apply position transform to image + masks
         x_aug = self.transform_pos(x)
@@ -38,12 +36,12 @@ class DataAugmentation(nn.Module):
         # RGB + NIR color transformations
         im_rgb_aug = self.transform_color(x_aug[:, 0:3, :, :])
         im_nir_aug = self.transform_nir(x_aug[:, 3:4, :, :])
+        mask_aug = x_aug[:, 4:5, :, :]
 
-        # Combine into 4-channel RGB+NIR image
-        im_aug = torch.concat((im_rgb_aug, im_nir_aug), dim=1)
+        # Combine into 4-channel RGB+NIR image + location mask
+        im_aug = torch.concat((im_rgb_aug, im_nir_aug, mask_aug), dim=1)
 
-        # Extract mask and probmask
-        m_aug = x_aug[:, 4:5, :, :]
+        # Extract probmask for training
         pm_aug = x_aug[:, 5:6, :, :]
 
-        return im_aug, m_aug, pm_aug
+        return im_aug, pm_aug
