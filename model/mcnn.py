@@ -8,7 +8,41 @@ from torch.nn import MaxUnpool2d
 #from patch import MaxUnpool2d
 
 
-class DecoderBlock(nn.Module):
+class Freezable:
+
+    def parameters(self):
+        # This is overridden
+        return []
+
+    def freeze(self):
+        self._set_freeze(True)
+
+    def unfreeze(self):
+        self._set_freeze(False)
+
+    def _set_freeze(self, v):
+        req_grad = not bool(v)
+        for param in self.parameters():
+            param.requires_grad = req_grad
+
+
+class FreezableModule(nn.Module, Freezable):
+    pass
+
+
+class FreezableModuleList(nn.ModuleList, Freezable):
+    pass
+
+
+class FreezableAdaptiveAvgPool2d(nn.AdaptiveAvgPool2d, Freezable):
+    pass
+
+
+class FreezableLinear(nn.Linear, Freezable):
+    pass
+
+
+class DecoderBlock(FreezableModule):
 
     def __init__(self, in_channels, out_channels, kernel_size=3):
         super().__init__()
@@ -37,7 +71,7 @@ class DecoderBlock(nn.Module):
         return enc_ftrs
 
 
-class Resnet18Encoder(nn.Module):
+class Resnet18Encoder(FreezableModule):
 
     def __init__(self, in_channels=3):
         super().__init__()
@@ -92,7 +126,7 @@ class Resnet18Encoder(nn.Module):
         return x
 
 
-class Resnet50Decoder(nn.ModuleList):
+class Resnet50Decoder(FreezableModuleList):
 
     def __init__(self):
         super().__init__()
@@ -123,7 +157,7 @@ class Resnet50Decoder(nn.ModuleList):
         return x
 
 
-class Resnet18Decoder(nn.ModuleList):
+class Resnet18Decoder(FreezableModuleList):
 
     def __init__(self):
         super().__init__()
@@ -160,11 +194,15 @@ class MaskCNN(nn.Module):
 
     def __init__(self, num_classes=2):
         super().__init__()
+        # Segmentation stage
         self.encoder = Resnet18Encoder(in_channels=5)
-        self.encoder2 = Resnet18Encoder(in_channels=4)
         self.decoder = Resnet18Decoder()
-        self.avgpool = nn.AdaptiveAvgPool2d(output_size=(1, 1))
-        self.fc = nn.Linear(512, num_classes, bias=True)     # Resnet50: 2048
+
+        # Classification stage
+        self.encoder2 = Resnet18Encoder(in_channels=5)
+        self.avgpool = FreezableAdaptiveAvgPool2d(output_size=(1, 1))
+        self.fc = FreezableLinear(512, num_classes,
+                                  bias=True)     # Resnet50: 2048
 
     def forward(self, x):
 
@@ -178,7 +216,10 @@ class MaskCNN(nn.Module):
         # Adjust image from mask
         # NOTE: image is (0, 1, 2, 3). Input mask is (4),
         # so we only fetch the former
-        x = torch.multiply(x[:, 0:4, ...], y)
+        # NOTE: the paper recommends multiplication, but in this case
+        # concat-ing the segmentation mask seems to produce better results
+        # x = torch.multiply(x[:, 0:4, ...], y)
+        x = torch.concat((x[:, 0:4, ...], y), dim=1)
 
         # Updated Image -> Features
         x = self.encoder2(x)

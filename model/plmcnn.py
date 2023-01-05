@@ -17,13 +17,13 @@ class PLMaskCNN(pl.LightningModule):
                  weights,
                  learning_rate=1e-4,
                  loss_lambda=0.1,
-                 frozen=None):
+                 staging_order=(0, )):
         super().__init__()
 
         # Hyperparameters
         self.learning_rate = learning_rate
         self.loss_lambda = loss_lambda
-        self.frozen = frozen
+        self.staging_order = staging_order
         self.save_hyperparameters()
 
         # Set labels and weights for training
@@ -33,6 +33,29 @@ class PLMaskCNN(pl.LightningModule):
         self.transform = DataAugmentation()
         self.loss = MCNNLoss(self.loss_lambda, self.weights)
         self.model = MaskCNN(num_classes=len(self.labels))
+
+    def set_stage(self, v):
+        first_stage = (self.model.encoder, self.model.decoder)
+        second_stage = (self.model.encoder2, self.model.avgpool, self.model.fc)
+
+        # Freeze / unfreeze components based on stage
+        if v == 0:
+            [e.unfreeze() for e in first_stage]
+            [e.unfreeze() for e in second_stage]
+        elif v == 1:
+            [e.unfreeze() for e in first_stage]
+            [e.freeze() for e in second_stage]
+        elif v == 2:
+            [e.freeze() for e in first_stage]
+            [e.unfreeze() for e in second_stage]
+        else:
+            raise ValueError(f'Unknown v: {repr(v):s}')
+
+        # Loss function requires stage
+        self.loss.stage = v
+
+        # Set stage
+        self.stage = v
 
     def forward(self, x):
         return self.model(x)
