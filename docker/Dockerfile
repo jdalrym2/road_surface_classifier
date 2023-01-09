@@ -1,15 +1,41 @@
-FROM python:3.10.9 as python
-RUN python -m venv --copies /venv
-
-FROM nvidia/cuda:11.7.0-base-ubuntu20.04 as final
-COPY --from=python /venv /venv
-COPY --from=python /usr/local/ /usr/local/
+FROM nvidia/cuda:11.7.0-base-ubuntu22.04 as final
 SHELL ["/bin/bash", "-c"]
 
-# Install necessary software
+# Install necessary software for Python
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
     apt-get install -y --no-install-recommends \
     build-essential \
+    wget \
+    lcov \
+    pkg-config \
+    libreadline6-dev \
+    libncurses5-dev \
+    libssl-dev \
+    libsqlite3-dev \
+    tk-dev \
+    libgdbm-dev \
+    libgdbm-compat-dev \
+    liblzma-dev \
+    libc6-dev \
+    libbz2-dev \
+    libffi-dev \
+    lzma \
+    lzma-dev \
+    uuid-dev \
+    zlib1g-dev
+
+# Compile Python
+WORKDIR /tmp
+RUN wget https://www.python.org/ftp/python/3.10.6/Python-3.10.6.tgz && \
+    tar xf Python-3.10.6.tgz && \
+    cd Python-3.10.6 && \
+    ./configure && make && make install && \
+    python3 -m venv --copies /venv && \
+    cd /tmp && rm -rf Python-3.10.6.tgz Python-3.10.6
+
+# Install necessary software for Python venv + GDAL
+RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
+    apt-get install -y \
     libopenjp2-7-dev \
     swig \
     cmake \
@@ -23,15 +49,12 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
     librttopo-dev \
     libcrypto++-dev \
     libjson-c-dev \
-    libtiff-dev \
     libproj-dev \
     libxml2-dev \
     libgeotiff-dev \
     libexpat1-dev \
     libpng-dev \
-    libsqlite3-dev \
-    libhdf4-dev \
-    libtk
+    libhdf4-dev
 
 # Python requirements
 WORKDIR /tmp
@@ -42,11 +65,24 @@ RUN source /venv/bin/activate && \
 
 # Compile & Install GDAL
 WORKDIR /tmp
+ADD lerc-master.tar.gz /tmp
+RUN cd /tmp/lerc-master && \
+    cmake . && make && make install && \
+    cd /tmp && rm -rf lerc-master
+
+WORKDIR /tmp
+ADD tiff-4.5.0.tar.gz /tmp/
+RUN cd /tmp/tiff-4.5.0 && \
+    cmake . && make && make install && \
+    cd /tmp && rm -rf tiff-4.5.0
+
+# -DGDAL_USE_INTERNAL_LIBS=ON && \
+WORKDIR /tmp
 ADD gdal-3.5.0.tar.gz /tmp
-RUN source /venv/bin/activate && \
-    cd /tmp/gdal-3.5.0 && \
+RUN cd /tmp/gdal-3.5.0 && \
+    source /venv/bin/activate && \
     cmake -S . -B build \
-    -DCMAKE_PREFIX_PATH:FILEPATH="/venv" \
+    -DCMAKE_PREFIX_PATH="/venv" \
     -DCMAKE_INSTALL_PREFIX="/venv" \
     -DCMAKE_BUILD_TYPE=Release && \
     cmake --build build -j 8 --target install && \
@@ -59,7 +95,7 @@ ARG USER_GID=$USER_UID
 
 # Software for dev
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
-    apt-get install -y \
+    apt-get install -y --no-install-recommends \
     vim \
     git \
     sudo && \
@@ -71,5 +107,4 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
 
 # Environment variables
 ENV GDAL_DATA=/venv/share/gdal/
-ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/venv/lib/
-ENV PATH=/venv/bin:${PATH}
+ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/venv/lib
