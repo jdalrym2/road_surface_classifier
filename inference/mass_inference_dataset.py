@@ -54,9 +54,9 @@ class MassInferenceDataset(Dataset):
         x1, y1, x2, y2 = [row[e].item() for e in ('x1', 'y1', 'x2', 'y2')]
 
         # Mask
-        im, mask = fetch(IMAGERY_PATH / row['img'], x1, y1, x2, y2, row['wkt'])
+        im = fetch(IMAGERY_PATH / row['img'], x1, y1, x2, y2, row['wkt'])
 
         # Concat image and masks for output
-        x = self.transform(np.concatenate((im, mask), axis=2))
+        x = self.transform(im)
 
         return row.name, x

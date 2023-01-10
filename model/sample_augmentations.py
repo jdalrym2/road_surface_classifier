@@ -33,7 +33,9 @@ def sample_augmentations(ds, transform, grid=5):
     # Plot images
     for idx in range(4, len(ax), 4):
         # Do an augmentation
-        im_aug, m_aug, pm_aug = transform(x)
+        im_aug, pm_aug = transform(x)
+        m_aug = im_aug[:, 4:5, ...]
+        im_aug = im_aug[:, 0:4, ...]
 
         im_aug_np = (np.moveaxis(im_aug[0, ...].numpy(), 0, -1) * 255.).astype(
             np.uint8)

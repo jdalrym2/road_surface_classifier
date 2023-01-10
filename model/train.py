@@ -69,7 +69,7 @@ if __name__ == '__main__':
     weights = list(weights_df['weight']) + [1]
 
     # Model
-    model = PLMaskCNN(labels=labels, weights=weights, staging_order=(0, ))
+    model = PLMaskCNN(labels=labels, weights=weights, staging_order=(1, 0))
     torch.save(model, save_dir / 'model.pth')
 
     # Train model in stages

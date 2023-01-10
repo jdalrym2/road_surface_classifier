@@ -51,4 +51,4 @@ def fetch(img_path, x1, y1, x2, y2, wkt):
         joint="curve")
     mask = np.array(mask_pil)[:, :, np.newaxis]
 
-    return im, mask
+    return np.concatenate((im, mask), axis=-1)

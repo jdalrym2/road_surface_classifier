@@ -24,10 +24,10 @@ from preprocess import PreProcess
 # Since these files are so large, they are not in source control.
 # Reach out to me if you'd like them.
 model_path = pathlib.Path(
-    '/data/road_surface_classifier/results/20221229_205449Z/model.pth')
+    '/data/road_surface_classifier/results/20230107_042006Z/model.pth')
 assert model_path.exists()
 ckpt_path = pathlib.Path(
-    '/data/road_surface_classifier/results/20221229_205449Z/model-epoch=12-val_loss=0.41723.ckpt'
+    '/data/road_surface_classifier/results/20230107_042006Z/model-0-epoch=10-val_loss=0.39906.ckpt'
 )
 assert ckpt_path.exists()
 ds_path = pathlib.Path('/nfs/taranis/naip/BOULDER_COUNTY_NAIP_2019.sqlite3')
@@ -35,7 +35,9 @@ assert ds_path.exists()
 
 # %%
 # Load model and checkpoint, set to eval (inference) mode
-model = torch.load(model_path).load_from_checkpoint(ckpt_path)
+from plmcnn import PLMaskCNN
+
+model = PLMaskCNN.load_from_checkpoint(ckpt_path)
 model.eval()
 
 # Get label array (it's built into model)
@@ -59,12 +61,8 @@ for i, (osm_id, x) in tqdm(enumerate(iter(val_dl)),
 
     sz = x.shape[0]
 
-    # Get mask and image
-    xm = x[:, 4:5, :, :]
-    x = x[:, 0:4, :, :]
-
     # Predict with the model
-    _, y_pred = model(x, xm)
+    _, y_pred = model(x)
 
     y_pred_am = torch.argmax(y_pred[:, 0:-1], dim=1)
     y_pred_am = y_pred_am.detach().numpy()     # type: ignore
@@ -82,14 +80,14 @@ columns = ['osm_id', 'pred_label', *['pred_%s' % label for label in labels]]
 
 df = pd.DataFrame(output, columns=columns).set_index('osm_id')
 df.to_csv(
-    '/nfs/taranis/naip/BOULDER_COUNTY_NAIP_2019_results_20221229_205449Z.csv')
+    '/nfs/taranis/naip/BOULDER_COUNTY_NAIP_2019_results_20230107_042006Z.csv')
 
 #%%
 import sqlite3
 import pandas as pd
 
 df = pd.read_csv(
-    '/nfs/taranis/naip/BOULDER_COUNTY_NAIP_2019_results_20221229_205449Z.csv'
+    '/nfs/taranis/naip/BOULDER_COUNTY_NAIP_2019_results_20230107_042006Z.csv'
 ).set_index('osm_id')
 
 with sqlite3.connect(
