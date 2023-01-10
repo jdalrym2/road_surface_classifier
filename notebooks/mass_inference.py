@@ -17,7 +17,7 @@ from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader
 
-from mass_inference_dataset import MassInferenceDataset
+from rsc.inference.mass_inference_dataset import MassInferenceDataset
 from preprocess import PreProcess
 
 # Input model and checkpoint paths (checkpoint contains the weights for inference)
