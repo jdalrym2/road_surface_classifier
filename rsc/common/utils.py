@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 """ Dataset Preparation Utilities """
 import pathlib
-from typing import Optional, Union, Tuple, overload
+import sqlite3
+from typing import List, Optional, Union, Tuple, overload
 
+import pandas as pd
 import numpy as np
 from osgeo import gdal, ogr, osr
 
@@ -599,3 +601,33 @@ def get_length_m(wkt_str: str) -> float:
     g.Transform(trans)
 
     return g.Length()
+
+
+def pandas_load_sqlite(sqlite_path: Union[str, pathlib.Path],
+                       table: str,
+                       columns: Optional[List[str]] = None) -> pd.DataFrame:
+    """
+    Load a SQLite3 table into a Pandas dataframe.
+
+    Args:
+        sqlite_path (Union[str, pathlib.Path]): Path to sqlite3 file
+        table (str): Table name to load into dataframe
+        columns (Optional[List[str]], optional): Columns to load. Set to None to load all columns. Defaults to None.
+
+    Returns:
+        pd.DataFrame: Dataframe representing sqlite3 table and appropriate columns
+    """
+    assert pathlib.Path(sqlite_path).exists()
+    with sqlite3.connect(f'file:{str(sqlite_path)}?mode=ro', uri=True) as con:
+        cursor = con.cursor()
+        if columns is None:
+            cursor.execute(f'PRAGMA table_info({table:s});')
+            columns = [col for _, col, _, _, _, _ in cursor.fetchall()]
+            cursor.execute(f"""
+                SELECT * from {table:s};
+            """)
+        else:
+            cursor.execute(f"""
+                SELECT {', '.join(columns)} from {table:s};
+            """)
+    return pd.DataFrame(cursor.fetchall(), columns=columns)

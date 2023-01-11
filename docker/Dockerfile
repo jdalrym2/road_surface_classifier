@@ -70,14 +70,12 @@ RUN cd /tmp/lerc-master && \
     cmake . && make && make install && \
     cd /tmp && rm -rf lerc-master
 
-WORKDIR /tmp
+
 ADD tiff-4.5.0.tar.gz /tmp/
 RUN cd /tmp/tiff-4.5.0 && \
     cmake . && make && make install && \
     cd /tmp && rm -rf tiff-4.5.0
 
-# -DGDAL_USE_INTERNAL_LIBS=ON && \
-WORKDIR /tmp
 ADD gdal-3.5.0.tar.gz /tmp
 RUN cd /tmp/gdal-3.5.0 && \
     source /venv/bin/activate && \

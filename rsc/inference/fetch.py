@@ -7,8 +7,7 @@ import PIL.ImageDraw
 
 import sys
 
-sys.path.append('..')
-from data_prep.utils import imread_geotransform, imread_srs, imread, map_to_pix
+from rsc.common.utils import imread_geotransform, imread_srs, imread, map_to_pix
 
 ogr.UseExceptions()
 

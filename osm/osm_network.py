@@ -333,7 +333,7 @@ class OSMNetwork:
         root.attrib = dict(version='0.6', generator=self._generator)
 
         # Add OSM disclosure and license
-        ET.SubElement(root, 'note').text = COPYRIGHT_STR
+        ET.SubElement(root, 'note').text = COPYRIGHT_STR     # type: ignore
 
         # Add timestamp metadata
         ET.SubElement(root, 'meta', dict(osm_base=self._timestamp))

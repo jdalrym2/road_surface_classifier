@@ -9,8 +9,6 @@
 # Hacky way to get PLMCNN in scope
 import sys
 
-sys.path.append('../model')
-
 import pathlib
 from tqdm import tqdm
 
@@ -18,7 +16,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from rsc.inference.mass_inference_dataset import MassInferenceDataset
-from preprocess import PreProcess
+from rsc.model.preprocess import PreProcess
 
 # Input model and checkpoint paths (checkpoint contains the weights for inference)
 # Since these files are so large, they are not in source control.
@@ -35,7 +33,7 @@ assert ds_path.exists()
 
 # %%
 # Load model and checkpoint, set to eval (inference) mode
-from plmcnn import PLMaskCNN
+from rsc.model.plmcnn import PLMaskCNN
 
 model = PLMaskCNN.load_from_checkpoint(ckpt_path)
 model.eval()

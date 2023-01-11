@@ -3,15 +3,12 @@
 """ Pre-mass inference script. Loop through images and find chips of drivable ways. """
 #%% Imports and inputs
 import sqlite3
-import sys
-
-sys.path.append('..')
 
 import pathlib
 from osgeo import gdal, ogr, osr
 import pandas as pd
 
-from data_prep.utils import imread_geometry, imread_dims, map_to_pix
+from rsc.common.utils import imread_geometry, imread_dims, map_to_pix
 from osm.overpass_api.road_network import OSMRoadNetworkOverpassQuery
 
 gdal.UseExceptions()
