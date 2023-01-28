@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
+import torch
 import torch.nn as nn
 import torch.nn.functional as functional
 
@@ -11,7 +11,7 @@ class MCNNLoss(nn.Module):
 
     def __init__(self, class_weights, loss_lambda):
         super().__init__()
-        self.class_weights = class_weights
+        self.class_weights = torch.Tensor(class_weights).float().cuda()
         self.loss_lambda = loss_lambda
         self.dice_loss = DiceBCELoss()
 

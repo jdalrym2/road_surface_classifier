@@ -3,6 +3,7 @@
 
 import os
 import sys
+from typing import Optional
 
 sys.path.append(
     os.getcwd())     # TODO: this is silly, would be fixed with pip install
@@ -12,7 +13,6 @@ os.environ["AWS_PROFILE"] = 'truenas'
 os.environ["MLFLOW_S3_ENDPOINT_URL"] = 'http://truenas.local:9807'
 
 import pathlib
-from typing import List, Optional, Type
 from datetime import datetime
 
 import pandas as pd
@@ -27,7 +27,6 @@ from pytorch_lightning.loggers import MLFlowLogger
 from rsc.model.plmcnn import PLMaskCNN
 from rsc.model.preprocess import PreProcess
 from rsc.model.road_surface_dataset import RoadSurfaceDataset
-from rsc.artifacts.metrics_handler import MetricsHandler
 from rsc.artifacts.confusion_matrix_handler import ConfusionMatrixHandler
 
 QUICK_TEST = False
@@ -38,7 +37,9 @@ if __name__ == '__main__':
     results_dir = pathlib.Path(
         '/data/road_surface_classifier/results').resolve()
     assert results_dir.is_dir()
-    save_dir = results_dir / datetime.utcnow().strftime('%Y%m%d_%H%M%SZ')
+    now = datetime.utcnow().strftime(
+        '%Y%m%d_%H%M%SZ')     # timestamp string used for traceability
+    save_dir = results_dir / now
     save_dir.mkdir(parents=False, exist_ok=False)
 
     # Log epoch + validation loss to CSV
@@ -47,13 +48,10 @@ if __name__ == '__main__':
     # Labels and weights
     weights_df = pd.read_csv(
         '/data/road_surface_classifier/dataset/class_weights.csv')
-    urban_df = pd.read_csv(
-        '/data/road_surface_classifier/dataset/urban_weights.csv')
 
     # NOTE: We add obscuration class with a weight of 1
-    labels = list(weights_df['class_name']) + ['Obscured']
+    labels = list(weights_df['class_name']) + ['obscured']
     class_weights = list(weights_df['weight']) + [1]
-    urban_weights = [1.5, 0.5]     # list(urban_df['weight'])
 
     # Get dataset
     preprocess = PreProcess()
@@ -75,33 +73,38 @@ if __name__ == '__main__':
     val_dl = DataLoader(val_ds, num_workers=16, batch_size=batch_size)
 
     # Model
-    # model = PLMaskCNN(weights=class_weights, labels=labels, staging_order=(1, 0))
-    model = PLMaskCNN.load_from_checkpoint(
-        '/data/road_surface_classifier/results/20230122_212152Z/model-1-epoch=154-val_loss=0.03578.ckpt'
-    )
-    model.weights = torch.tensor(class_weights).float().cuda()
-    # model.learning_rate = 1e-5
-    model.staging_order = (0, )
-    model.save_hyperparameters()
+    model = PLMaskCNN(weights=class_weights,
+                      labels=labels,
+                      learning_rate=(1e-3, 1e-5),
+                      staging_order=(1, 2))
 
     # Save model to results directory
-    torch.save(model.model, save_dir / 'model.pth')
+    torch.save(model, save_dir / 'model.pth')
+
+    try:
+        torch.load(save_dir / 'model.pth')
+    except:
+        import traceback
+        traceback.print_exc()
+        raise AssertionError('Torch model failed to deserialize!')
 
     # Train model in stages
     best_model_path: Optional[str] = None
     mlflow_logger: Optional[MLFlowLogger] = None
-    for stage in model.staging_order:
+    for stage, lr in zip(model.staging_order, model.learning_rate):
         print('Training stage %d...' % stage)
 
         # Set stage, which freezes / unfreezes layers
-        model.set_stage(stage)
+        model.set_stage(stage, lr)
 
         # Logger
-        mlflow_logger = MLFlowLogger(
-            experiment_name='road_surface_classifier',
-            run_name='run_%s_%d' %
-            (datetime.utcnow().strftime('%Y%m%d_%H%M%SZ'), stage),
-            tracking_uri='http://truenas.local:9809')
+        mlflow_logger = MLFlowLogger(experiment_name='road_surface_classifier',
+                                     run_name='run_%s_%d' % (now, stage),
+                                     tracking_uri='http://truenas.local:9809')
+
+        # Upload base model
+        mlflow_logger.experiment.log_artifact(mlflow_logger.run_id,
+                                              str(save_dir / 'model.pth'))
 
         # Save checkpoints (model states for later)
         checkpoint_callback = ModelCheckpoint(
@@ -137,20 +140,22 @@ if __name__ == '__main__':
     assert best_model_path is not None
     assert mlflow_logger is not None
 
-    # Plot confusion matrix
+    # Generate artifacts
+    print('Generating artifacts...')
+    del model     # just to be safe
     model = PLMaskCNN.load_from_checkpoint(best_model_path)
     model.eval()
 
     # Generate artifacts from model
-    metrics_handlers: List[Type[MetricsHandler]] = [ConfusionMatrixHandler]
-    for handler_class in metrics_handlers:
-
-        # Generate artifact
-        artifact_path = handler_class(save_dir, model, val_dl)()
-
-        # Upload artifact
-        if artifact_path is not None:
-            mlflow_logger.experiment.log_artifact(mlflow_logger.run_id,
-                                                  str(artifact_path))
-        else:
-            print('Skipping artifact upload.')
+    from rsc.artifacts import ArtifactGenerator
+    from rsc.artifacts.confusion_matrix_handler import ConfusionMatrixHandler
+    from rsc.artifacts.accuracy_obsc_handler import AccuracyObscHandler
+    from rsc.artifacts.obsc_compare_handler import ObscCompareHandler
+    from rsc.artifacts.samples_handler import SamplesHandler
+    generator = ArtifactGenerator(save_dir, model, val_dl)
+    generator.add_handler(ConfusionMatrixHandler())
+    generator.add_handler(AccuracyObscHandler())
+    generator.add_handler(ObscCompareHandler())
+    generator.add_handler(SamplesHandler())
+    generator.run(raise_on_error=False)
+    mlflow_logger.experiment.log_artifacts(mlflow_logger.run_id, str(save_dir))

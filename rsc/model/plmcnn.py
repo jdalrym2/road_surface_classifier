@@ -12,30 +12,34 @@ from .mcnn_loss import MCNNLoss
 
 class PLMaskCNN(pl.LightningModule):
 
-    def __init__(
-        self,
-        labels,
-     #weights, # TODO: remove once patch is done
-        learning_rate=1e-4,
-        loss_lambda=0.1,
-        staging_order=(0, )):
+    def __init__(self,
+                 labels,
+                 weights,
+                 learning_rate: tuple | float = 1e-4,
+                 loss_lambda=0.1,
+                 staging_order=(0, )):
         super().__init__()
 
         # Hyperparameters
-        self.learning_rate = learning_rate
+        if isinstance(learning_rate, float):
+            learning_rate = tuple([learning_rate] * len(staging_order))
+        else:
+            assert len(learning_rate) == len(staging_order)
+        self.learning_rate = tuple(learning_rate)
         self.loss_lambda = loss_lambda
         self.staging_order = staging_order
+        self.labels = labels
+        self.weights = weights
         self.save_hyperparameters()
 
-        # Set labels and weights for training
-        self.labels = labels
-        self.weights = None     # TODO: remove torch.tensor(weights).float().cuda()
+        # Stateful learning rate
+        self._lr = learning_rate[0]
 
         self.transform = DataAugmentation()
         self.loss = MCNNLoss(self.weights, self.loss_lambda)
         self.model = MaskCNN(num_classes=len(self.labels))
 
-    def set_stage(self, v):
+    def set_stage(self, v, lr):
         first_stage = (self.model.encoder, self.model.decoder)
         second_stage = (self.model.encoder2, self.model.avgpool, self.model.fc)
 
@@ -54,6 +58,9 @@ class PLMaskCNN(pl.LightningModule):
 
         # Loss function requires stage
         self.loss.stage = v
+
+        # Learning rate depends on stage
+        self._lr = lr
 
         # Set stage
         self.stage = v
@@ -96,4 +103,4 @@ class PLMaskCNN(pl.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        return torch.optim.Adam(self.parameters(), lr=self._lr)

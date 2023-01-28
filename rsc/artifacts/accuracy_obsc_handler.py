@@ -74,12 +74,24 @@ class AccuracyObscHandler(ArtifactHandler):
         idx_unpaved = np.where(y_true == 1)[0]
 
         # Compute accuracy scores
-        acc_all = num_correct / num_total
-        acc_paved = np.count_nonzero(acc[idx_paved]) / len(idx_paved)
-        acc_unpaved = np.count_nonzero(acc[idx_unpaved]) / len(idx_unpaved)
+        try:
+            acc_all = num_correct / num_total
+        except ZeroDivisionError:
+            acc_all = np.nan
+        try:
+            acc_paved = np.count_nonzero(acc[idx_paved]) / len(idx_paved)
+        except ZeroDivisionError:
+            acc_paved = np.nan
+        try:
+            acc_unpaved = np.count_nonzero(acc[idx_unpaved]) / len(idx_unpaved)
+        except ZeroDivisionError:
+            acc_unpaved = np.nan
 
         # Compute paved proportion
-        pc_paved = len(idx_paved) / len(acc)
+        try:
+            pc_paved = len(idx_paved) / len(acc)
+        except ZeroDivisionError:
+            pc_paved = np.nan
 
         return acc_all, acc_paved, acc_unpaved, pc_paved
 
