@@ -28,10 +28,10 @@ results_name = ckpt_path.parent.name
 ds_path = pathlib.Path('/nfs/taranis/naip/BOULDER_COUNTY_NAIP_2019.sqlite3')
 assert ds_path.exists()
 
-# %%
-# Load model and checkpoint, set to eval (inference) mode
+# %% Setup processing chain for inference
 from rsc.model.plmcnn import PLMaskCNN
 
+# Load model and set to eval mode
 model = PLMaskCNN.load_from_checkpoint(ckpt_path)
 model.eval()
 
@@ -47,28 +47,32 @@ val_dl = DataLoader(val_ds,
                     batch_size=batch_size,
                     shuffle=True)
 
-#%% Get truth and predictions using the dataloader
+#%% Iterate over the dataloader, and fetch predictions
 
+# Output data array
 output = []
 
 for i, (osm_id, x) in tqdm(enumerate(iter(val_dl)),
                            total=len(val_ds) // batch_size):
 
+    # Get size of this batch
     sz = x.shape[0]
 
     # Predict with the model
     _, y_pred = model(x)
 
+    # Compute argmax
     y_pred_am = torch.argmax(y_pred[:, 0:-1], dim=1)
     y_pred_am = y_pred_am.detach().numpy()     # type: ignore
 
+    # Compute softmax
     y_pred_sm = torch.softmax(y_pred, dim=1)
     y_pred_sm = y_pred_sm.detach().numpy()     # type: ignore
 
     for j in range(sz):
         output.append((int(osm_id[j]), labels[y_pred_am[j]], *y_pred_sm[j, :]))
 
-#%%
+#%% Save output as CSV
 import pandas as pd
 
 columns = ['osm_id', 'pred_label', *['pred_%s' % label for label in labels]]
@@ -77,7 +81,7 @@ df = pd.DataFrame(output, columns=columns).set_index('osm_id')
 df.to_csv(
     f'/nfs/taranis/naip/BOULDER_COUNTY_NAIP_2019_results_{results_name}.csv')
 
-#%%
+#%% Load in CSV output, and merge with original dataset SQLite file
 import sqlite3
 import pandas as pd
 
@@ -93,7 +97,7 @@ with sqlite3.connect(
 df = df.join(df2)
 df
 
-#%%
+#%% Save results into GPKG file for import to QGIS
 from osgeo import gdal, ogr, osr
 
 gdal.UseExceptions()
@@ -107,7 +111,8 @@ driver: ogr.Driver = ogr.GetDriverByName('GPKG')
 ds: ogr.DataSource = driver.CreateDataSource(
     f'/data/road_surface_classifier/BOULDER_COUNTY_NAIP_2019_results_{results_name}.gpkg'
 )
-layer: ogr.Layer = ds.CreateLayer('data', srs=srs, geom_type=ogr.wkbLineString)
+layer: ogr.Layer = ds.CreateLayer(
+    'data', srs=srs, geom_type=ogr.wkbLineString)     # type: ignore
 
 osm_id_field = ogr.FieldDefn('osm_id', ogr.OFTInteger64)
 highway_field = ogr.FieldDefn('highway', ogr.OFTString)
@@ -149,25 +154,27 @@ for osm_id, row in df.iterrows():
 layer = None     # type: ignore
 ds = None     # type: ignore
 
-#%%
+#%% Convert the CSV file into another QGIS GPKG, but pruned to ways with
+#   known surface types, such that we can evaluate the model's accuracy easier
 import sqlite3
 import pandas as pd
+from osgeo import gdal, ogr, osr
 
+gdal.UseExceptions()
+ogr.UseExceptions()
+
+# Read CSV, merge with dataset, extract the labels we want
 df = pd.read_csv(
     f'/nfs/taranis/naip/BOULDER_COUNTY_NAIP_2019_results_{results_name}.csv'
 ).set_index('osm_id')
-
 with sqlite3.connect(
         'file:/nfs/taranis/naip/BOULDER_COUNTY_NAIP_2019.sqlite3?mode=ro',
         uri=True) as con:
     df2 = pd.read_sql('SELECT * FROM features;', con).set_index('osm_id')
-
 df = df.join(df2)
-
-breakpoint()
-
 df = df[['wkt', 'pred_label', 'surface_tag', 'highway_tag', 'pred_Obscured']]
 
+# Mapping of OSM surface types to simple paved / unpaved
 class_map = {
     'asphalt': 'paved',
     'bricks': 'paved',
@@ -182,20 +189,16 @@ class_map = {
     'unpaved': 'unpaved',
 }
 
+# Trim dataset + determine "correctness"
 df = df[df['surface_tag'] != '']
 df['surface_tag'] = df['surface_tag'].apply(class_map.get)
 df['correct'] = df['surface_tag'] == df['pred_label']
-
-#%%
-from osgeo import gdal, ogr, osr
-
-gdal.UseExceptions()
-ogr.UseExceptions()
 
 # Create SRS (EPSG:4326: WGS-84 decimal degrees)
 srs = osr.SpatialReference()
 srs.ImportFromEPSG(4326)
 
+# Put into GPKG format for QGIS
 driver: ogr.Driver = ogr.GetDriverByName('GPKG')
 ds: ogr.DataSource = driver.CreateDataSource(
     f'/data/road_surface_classifier/BOULDER_COUNTY_NAIP_2019_results_eval_{results_name}.gpkg'

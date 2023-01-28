@@ -57,6 +57,7 @@ for img_path in TEST_CASE_PATH.glob('*.mrf'):
 
     # Compute image-specific coordinate transformation
     ds: gdal.Dataset = gdal.Open(str(img_path), gdal.GA_ReadOnly)
+    im_h, im_w = ds.RasterYSize, ds.RasterXSize
     g_xform = ds.GetGeoTransform()
     srs_ds: osr.SpatialReference = ds.GetSpatialRef()
     srs_ds.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
@@ -86,6 +87,10 @@ for img_path in TEST_CASE_PATH.glob('*.mrf'):
 
         # Compute upper-left corner for image chip
         x, y = [e[0].item() for e in map_to_pix(g_xform, pt.GetX(), pt.GetY())]
+        if (x < 0 or x >= im_w) or (y < 0 or y >= im_h):
+            # Center of way off of image, skipping.
+            # NOTE: this OSM_ID may appear in another image
+            continue
         x1, y1 = x - 128, y - 128
         x2, y2 = x1 + 256, y1 + 256
 
