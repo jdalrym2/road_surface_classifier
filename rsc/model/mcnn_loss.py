@@ -9,10 +9,6 @@ from .dice_bce_loss import DiceBCELoss
 
 class MCNNLoss(nn.Module):
 
-    __slots__ = [
-        'loss_lambda', 'class_weights', 'dice_loss', 'loss1', 'loss2', 'stage'
-    ]
-
     def __init__(self, class_weights, loss_lambda):
         super().__init__()
         self.class_weights = class_weights
