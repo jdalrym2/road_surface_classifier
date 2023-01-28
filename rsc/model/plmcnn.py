@@ -4,20 +4,21 @@
 import torch
 import pytorch_lightning as pl
 
-from data_augmentation import DataAugmentation
+from .data_augmentation import DataAugmentation
 
-from mcnn import MaskCNN
-from mcnn_loss import MCNNLoss
+from .mcnn import MaskCNN
+from .mcnn_loss import MCNNLoss
 
 
 class PLMaskCNN(pl.LightningModule):
 
-    def __init__(self,
-                 labels,
-                 weights,
-                 learning_rate=1e-4,
-                 loss_lambda=0.1,
-                 staging_order=(0, )):
+    def __init__(
+        self,
+        labels,
+     #weights, # TODO: remove once patch is done
+        learning_rate=1e-4,
+        loss_lambda=0.1,
+        staging_order=(0, )):
         super().__init__()
 
         # Hyperparameters
@@ -28,10 +29,10 @@ class PLMaskCNN(pl.LightningModule):
 
         # Set labels and weights for training
         self.labels = labels
-        self.weights = torch.tensor(weights).float().cuda()
+        self.weights = None     # TODO: remove torch.tensor(weights).float().cuda()
 
         self.transform = DataAugmentation()
-        self.loss = MCNNLoss(self.loss_lambda, self.weights)
+        self.loss = MCNNLoss(self.weights, self.loss_lambda)
         self.model = MaskCNN(num_classes=len(self.labels))
 
     def set_stage(self, v):

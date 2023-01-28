@@ -31,6 +31,8 @@ def find_best_model(results_dir: pathlib.Path) -> pathlib.Path:
                 val_losses.append((idx, val_loss))
 
     # Find path that has minimum validation loss
-    min_idx, _ = min(val_losses, key=lambda v: v[1])
+    # By reversing val losses, if there is a tie
+    # we fetch the last one
+    min_idx, _ = min(reversed(val_losses), key=lambda v: v[1])
 
     return paths[min_idx]

@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import kornia
 
-from color_jitter_nohuesat import ColorJitterNoHueSat
+from .color_jitter_nohuesat import ColorJitterNoHueSat
 
 
 class DataAugmentation(nn.Module):

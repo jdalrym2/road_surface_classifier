@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 import pathlib
+import torch
 
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 from . import device
 from .metrics_handler import MetricsHandler
@@ -16,7 +16,7 @@ from .metrics_handler import MetricsHandler
 matplotlib.use('Agg')
 
 
-class ConfusionMatrixHandler(MetricsHandler):
+class ObscCompareHandler(MetricsHandler):
 
     def generate_artifact(self) -> pathlib.Path:
         """
@@ -31,41 +31,38 @@ class ConfusionMatrixHandler(MetricsHandler):
                 values will be used. Defaults to None.
         """
 
-        # Try to get labels
-        labels = self.model.__dict__.get('labels')[:2]     # trim obsc label
-
         # Get truth and predictions using the dataloader
-        y_true_l, y_pred_l = [], []
+        y_pred_l, y_true_l = [], []
         for x, features in tqdm(iter(self.dataloader)):
+            features = features.cpu().detach().numpy()
+
             # We extract just the image + location mask
             x = x[:, 0:5, :, :].to(device)
-            y_true_l.append(features.numpy()[..., :2])
 
             # Get prediction from model
             _, pred = self.model(x)
+            pred = torch.softmax(pred, dim=1)
             pred = pred.cpu().detach().numpy()
 
-            # Lazy-init labels if we couldn't get them from the model
-            if labels is None:
-                labels = [f'Class {n+1:d}' for n in range(len(pred))]
-
             # Get predicted label as argmax
-            y_pred = np.argmax(pred[..., :2], axis=1)
-            y_pred_l.append(y_pred)
+            y_pred_l.append(pred[..., 2])
+            y_true_l.append(features[..., 2])
 
-        # Aggregate and organize
-        y_true = np.concatenate(y_true_l)
-        y_true = np.argmax(y_true, axis=1)
-        y_pred = np.concatenate(y_pred_l)
+        y_pred = np.concatenate(y_pred_l) * 100.
+        y_true = np.concatenate(y_true_l) * 100.
 
-        # Generate and save the confusion matrix
-        c = ConfusionMatrixDisplay(confusion_matrix(y_true,
-                                                    y_pred,
-                                                    normalize='true'),
-                                   display_labels=labels)
-        output_path = self.output_dir / 'confusion_matrix.png'
-        fig, ax = plt.subplots()
-        c.plot(ax=ax, cmap=plt.cm.Blues)     # type: ignore
+        # Create the plot!
+        fig, ax = plt.subplots(figsize=(12, 12))
+        ax.set_aspect('equal')
+        ax.scatter(y_pred, y_true, 9)
+        ax.set_xlabel(r'Predicted Obscuration [%]')
+        ax.set_ylabel(r'Est. Obscuration by Logit Regression [%]')
+        ax.set_title('Model Obscuration Prediction Accuracy')
+        ax.grid()
+        ax.plot((0, 100), (0, 100), '--k', linewidth=2)
+        ax.legend(['Model Data', 'y = x'])
+
+        output_path = self.output_dir / 'obsc_compare_plot.png'
         fig.savefig(str(output_path))
         plt.close(fig)
 

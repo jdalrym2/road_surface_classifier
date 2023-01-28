@@ -5,8 +5,6 @@ from osgeo import ogr, osr
 import PIL.Image
 import PIL.ImageDraw
 
-import sys
-
 from rsc.common.utils import imread_geotransform, imread_srs, imread, map_to_pix
 
 ogr.UseExceptions()

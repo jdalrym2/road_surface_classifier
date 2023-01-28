@@ -12,7 +12,7 @@ from torch.utils.data import Dataset
 
 import torch.multiprocessing
 
-from fetch import fetch
+from .fetch import fetch
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 

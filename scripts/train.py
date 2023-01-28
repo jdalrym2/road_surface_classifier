@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Set AWS profile (for use in MLFlow)
 import os
+import sys
 
+sys.path.append(
+    os.getcwd())     # TODO: this is silly, would be fixed with pip install
+
+# Set AWS profile (for use in MLFlow)
 os.environ["AWS_PROFILE"] = 'truenas'
 os.environ["MLFLOW_S3_ENDPOINT_URL"] = 'http://truenas.local:9807'
 
@@ -20,11 +24,11 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import MLFlowLogger
 
-from plmcnn import PLMaskCNN
-from preprocess import PreProcess
-from road_surface_dataset import RoadSurfaceDataset
-from generate_artifacts.metrics_handler import MetricsHandler
-from generate_artifacts.confusion_matrix_handler import ConfusionMatrixHandler
+from rsc.model.plmcnn import PLMaskCNN
+from rsc.model.preprocess import PreProcess
+from rsc.model.road_surface_dataset import RoadSurfaceDataset
+from rsc.artifacts.metrics_handler import MetricsHandler
+from rsc.artifacts.confusion_matrix_handler import ConfusionMatrixHandler
 
 QUICK_TEST = False
 
@@ -39,6 +43,17 @@ if __name__ == '__main__':
 
     # Log epoch + validation loss to CSV
     #logger = CSVLogger(str(save_dir))
+
+    # Labels and weights
+    weights_df = pd.read_csv(
+        '/data/road_surface_classifier/dataset/class_weights.csv')
+    urban_df = pd.read_csv(
+        '/data/road_surface_classifier/dataset/urban_weights.csv')
+
+    # NOTE: We add obscuration class with a weight of 1
+    labels = list(weights_df['class_name']) + ['Obscured']
+    class_weights = list(weights_df['weight']) + [1]
+    urban_weights = [1.5, 0.5]     # list(urban_df['weight'])
 
     # Get dataset
     preprocess = PreProcess()
@@ -59,18 +74,18 @@ if __name__ == '__main__':
                           shuffle=True)
     val_dl = DataLoader(val_ds, num_workers=16, batch_size=batch_size)
 
-    # Labels and weights
-    # Load class weights
-    weights_df = pd.read_csv(
-        '/data/road_surface_classifier/dataset/class_weights.csv')
-
-    # NOTE: We add obscuration class with a weight of 1
-    labels = list(weights_df['class_name']) + ['Obscured']
-    weights = list(weights_df['weight']) + [1]
-
     # Model
-    model = PLMaskCNN(labels=labels, weights=weights, staging_order=(1, 0))
-    torch.save(model, save_dir / 'model.pth')
+    # model = PLMaskCNN(weights=class_weights, labels=labels, staging_order=(1, 0))
+    model = PLMaskCNN.load_from_checkpoint(
+        '/data/road_surface_classifier/results/20230122_212152Z/model-1-epoch=154-val_loss=0.03578.ckpt'
+    )
+    model.weights = torch.tensor(class_weights).float().cuda()
+    # model.learning_rate = 1e-5
+    model.staging_order = (0, )
+    model.save_hyperparameters()
+
+    # Save model to results directory
+    torch.save(model.model, save_dir / 'model.pth')
 
     # Train model in stages
     best_model_path: Optional[str] = None
@@ -123,7 +138,7 @@ if __name__ == '__main__':
     assert mlflow_logger is not None
 
     # Plot confusion matrix
-    model.load_from_checkpoint(best_model_path)
+    model = PLMaskCNN.load_from_checkpoint(best_model_path)
     model.eval()
 
     # Generate artifacts from model

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import torch
+
 import torch.nn as nn
 import torch.nn.functional as functional
 
-from dice_bce_loss import DiceBCELoss
+from .dice_bce_loss import DiceBCELoss
 
 
 class MCNNLoss(nn.Module):
@@ -13,10 +13,10 @@ class MCNNLoss(nn.Module):
         'loss_lambda', 'class_weights', 'dice_loss', 'loss1', 'loss2', 'stage'
     ]
 
-    def __init__(self, loss_lambda, class_weights):
+    def __init__(self, class_weights, loss_lambda):
         super().__init__()
-        self.loss_lambda = loss_lambda
         self.class_weights = class_weights
+        self.loss_lambda = loss_lambda
         self.dice_loss = DiceBCELoss()
 
         self.loss1 = 0.
