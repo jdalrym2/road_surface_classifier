@@ -4,20 +4,19 @@
 
 import pathlib
 import argparse
-import traceback
-from typing import List, Type
 
 import torch
 from torch.utils.data import DataLoader
 
-from . import find_best_model
-from .metrics_handler import MetricsHandler
-from .confusion_matrix_handler import ConfusionMatrixHandler
-from .accuracy_obsc_handler import AccuracyObscHandler
-from .obsc_compare_handler import ObscCompareHandler
 from ..model.plmcnn import PLMaskCNN
 from ..model.road_surface_dataset import RoadSurfaceDataset
 from ..model.preprocess import PreProcess
+
+from . import find_best_model
+from .base import ArtifactGenerator
+from .confusion_matrix_handler import ConfusionMatrixHandler
+from .accuracy_obsc_handler import AccuracyObscHandler
+from .obsc_compare_handler import ObscCompareHandler
 
 
 def parse_args():
@@ -117,12 +116,14 @@ if __name__ == '__main__':
                         batch_size=pargs.batch_size,
                         shuffle=not pargs.no_shuffle)
 
-    # Generate artifacts from model
+    # Parse save directory, create if not there
     save_dir = pathlib.Path(pargs.output_path)
     if not save_dir.is_dir():
         save_dir.mkdir(parents=False)
-    metrics_handlers: List[Type[MetricsHandler]] = [ObscCompareHandler]
-    for handler_class in metrics_handlers:
-        # Generate artifact
-        # This is guaranteed to never throw an Exception
-        handler_class(save_dir, model, val_dl)()
+
+    # Generate artifacts from model
+    generator = ArtifactGenerator(save_dir, model, val_dl)
+    generator.add_handler(ConfusionMatrixHandler())
+    generator.add_handler(AccuracyObscHandler())
+    generator.add_handler(ObscCompareHandler())
+    generator.run(raise_on_error=False)

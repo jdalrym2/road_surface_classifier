@@ -2,54 +2,49 @@
 # -*- coding: utf-8 -*-
 
 import pathlib
+from typing import Any, Sequence
 import torch
 
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from tqdm import tqdm
 
-from . import device
-from .metrics_handler import MetricsHandler
+from torch.utils.data import DataLoader
+
+from .base import ArtifactHandler
 
 # Use non-GUI backend
 matplotlib.use('Agg')
 
 
-class ObscCompareHandler(MetricsHandler):
+class ObscCompareHandler(ArtifactHandler):
+    """ Handler class to plot predicted vs. actual obscuration """
 
-    def generate_artifact(self) -> pathlib.Path:
-        """
-        Plot a confusion matrix for a model.
+    def __init__(self):
+        super().__init__()
 
-        Args:
-            model (Unknown): Preloaded model
-            val_dl (DataLoader): Path to validation DataLoader to use
-            output_path (pathlib.Path): Plot output path
-            labels (Optional[List[str]], optional): Class labels. If not provided,
-                will be attempted to be extracted from the model. Otherwise, non-specific
-                values will be used. Defaults to None.
-        """
+        self.y_pred_l = []
+        self.y_true_l = []
 
-        # Get truth and predictions using the dataloader
-        y_pred_l, y_true_l = [], []
-        for x, features in tqdm(iter(self.dataloader)):
-            features = features.cpu().detach().numpy()
+    def start(self, model: Any, dataloader: DataLoader) -> None:
+        pass
 
-            # We extract just the image + location mask
-            x = x[:, 0:5, :, :].to(device)
+    def on_iter(self, dl_iter: Sequence, model_out: Sequence) -> None:
+        _, features = dl_iter
+        features = features.cpu().detach().numpy()
 
-            # Get prediction from model
-            _, pred = self.model(x)
-            pred = torch.softmax(pred, dim=1)
-            pred = pred.cpu().detach().numpy()
+        # Get prediction from model
+        _, pred = model_out
+        pred = torch.softmax(pred, dim=1)
+        pred = pred.cpu().detach().numpy()
 
-            # Get predicted label as argmax
-            y_pred_l.append(pred[..., 2])
-            y_true_l.append(features[..., 2])
+        # Get predicted label as argmax
+        self.y_pred_l.append(pred[..., -1])
+        self.y_true_l.append(features[..., -1])
 
-        y_pred = np.concatenate(y_pred_l) * 100.
-        y_true = np.concatenate(y_true_l) * 100.
+    def save(self, output_dir) -> pathlib.Path:
+        y_pred = np.concatenate(self.y_pred_l) * 100.
+        y_true = np.concatenate(self.y_true_l) * 100.
 
         # Create the plot!
         fig, ax = plt.subplots(figsize=(12, 12))
@@ -62,7 +57,7 @@ class ObscCompareHandler(MetricsHandler):
         ax.plot((0, 100), (0, 100), '--k', linewidth=2)
         ax.legend(['Model Data', 'y = x'])
 
-        output_path = self.output_dir / 'obsc_compare_plot.png'
+        output_path = output_dir / 'obsc_compare_plot.png'
         fig.savefig(str(output_path))
         plt.close(fig)
 

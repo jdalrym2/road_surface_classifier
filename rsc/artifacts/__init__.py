@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+""" RSC submodule to simplify artifact generation during inference over a dataset """
 import pathlib
 
 import torch
@@ -36,3 +37,6 @@ def find_best_model(results_dir: pathlib.Path) -> pathlib.Path:
     min_idx, _ = min(reversed(val_losses), key=lambda v: v[1])
 
     return paths[min_idx]
+
+
+from .base import ArtifactGenerator, ArtifactHandler
