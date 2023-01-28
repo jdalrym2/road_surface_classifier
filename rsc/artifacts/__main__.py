@@ -17,6 +17,7 @@ from .base import ArtifactGenerator
 from .confusion_matrix_handler import ConfusionMatrixHandler
 from .accuracy_obsc_handler import AccuracyObscHandler
 from .obsc_compare_handler import ObscCompareHandler
+from .samples_handler import SamplesHandler
 
 
 def parse_args():
@@ -126,4 +127,5 @@ if __name__ == '__main__':
     generator.add_handler(ConfusionMatrixHandler())
     generator.add_handler(AccuracyObscHandler())
     generator.add_handler(ObscCompareHandler())
+    generator.add_handler(SamplesHandler())
     generator.run(raise_on_error=False)
