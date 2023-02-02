@@ -79,7 +79,7 @@ class PLMaskCNN(pl.LightningModule):
                 'train_loss_cl': self.loss.loss2,
                 'train_loss': loss,
             },
-            on_step=True,
+            on_step=False,
             on_epoch=True)
         return loss
 
@@ -98,7 +98,7 @@ class PLMaskCNN(pl.LightningModule):
                 'val_loss_cl': self.loss.loss2,
                 'val_loss': loss,
             },
-            on_step=True,
+            on_step=False,
             on_epoch=True)
         return loss
 

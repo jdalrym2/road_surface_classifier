@@ -126,6 +126,61 @@ class Resnet18Encoder(FreezableModule):
         return x
 
 
+class Resnet34Encoder(FreezableModule):
+
+    def __init__(self, in_channels=3):
+        super().__init__()
+
+        # Get Resnet34 w/ default weights
+        self.rnet = torchvision.models.resnet34(
+            weights=torchvision.models.ResNet34_Weights.DEFAULT)
+
+        if in_channels != 3:
+            self.rnet.conv1 = nn.Conv2d(in_channels,
+                                        64,
+                                        kernel_size=(7, 7),
+                                        stride=(2, 2),
+                                        padding=(3, 3),
+                                        bias=False)
+
+        self.rnet.maxpool.return_indices = True
+
+        # Delete final avg pool / linear layer
+        del self.rnet.avgpool
+        del self.rnet.fc
+
+        # Features for cross-connections to decoder
+        self.feats = [
+            torch.Tensor([]),
+            torch.Tensor([]),
+            torch.Tensor([]),
+            torch.Tensor([])
+        ]
+        self.maxpool_idxs = None
+
+    def forward(self, x):
+        # Building up to stuff
+        x = self.rnet.conv1(x)
+        x = self.rnet.bn1(x)
+        x = self.rnet.relu(x)
+        x, self.maxpool_idxs = self.rnet.maxpool(x)
+
+        # Now the main layers
+        self.feats[0] = x
+        x = self.rnet.layer1(x)
+
+        self.feats[1] = x
+        x = self.rnet.layer2(x)
+
+        self.feats[2] = x
+        x = self.rnet.layer3(x)
+
+        self.feats[3] = x
+        x = self.rnet.layer4(x)
+
+        return x
+
+
 class Resnet50Decoder(FreezableModuleList):
 
     def __init__(self):
@@ -201,8 +256,7 @@ class MaskCNN(nn.Module):
         # Classification stage
         self.encoder2 = Resnet18Encoder(in_channels=5)
         self.avgpool = FreezableAdaptiveAvgPool2d(output_size=(1, 1))
-        self.fc = FreezableLinear(512, num_classes,
-                                  bias=True)     # Resnet50: 2048
+        self.fc = FreezableLinear(512, num_classes, bias=True)
 
     def forward(self, x):
 
@@ -218,7 +272,7 @@ class MaskCNN(nn.Module):
         # so we only fetch the former
         # NOTE: the paper recommends multiplication, but in this case
         # concat-ing the segmentation mask seems to produce better results
-        # x = torch.multiply(x[:, 0:4, ...], y)
+        #x = torch.multiply(x[:, 0:4, ...], y)
         x = torch.concat((x[:, 0:4, ...], y), dim=1)
 
         # Updated Image -> Features

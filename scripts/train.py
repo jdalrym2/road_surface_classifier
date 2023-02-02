@@ -20,8 +20,7 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, StochasticWeightAveraging
 from pytorch_lightning.loggers import MLFlowLogger
 
 from rsc.model.plmcnn import PLMaskCNN
@@ -75,12 +74,21 @@ if __name__ == '__main__':
     # Model
     model = PLMaskCNN(weights=class_weights,
                       labels=labels,
-                      learning_rate=(1e-3, 1e-5),
-                      staging_order=(1, 2))
+                      learning_rate=(1e-5),
+                      staging_order=(0, ))
+
+    import pickle
+    with open(
+            '/data/road_surface_classifier/results/20230128_175345Z/stage_1_state_dict.pkl',
+            'rb') as f:
+        encoder_dict, decoder_dict = pickle.load(f)
+    model.model.encoder.load_state_dict(encoder_dict)
+    model.model.decoder.load_state_dict(decoder_dict)
 
     # Save model to results directory
     torch.save(model, save_dir / 'model.pth')
 
+    # Attempt deserialization (b/c) I've had problems with it before
     try:
         torch.load(save_dir / 'model.pth')
     except:
@@ -118,13 +126,18 @@ if __name__ == '__main__':
                                                 mode='min',
                                                 patience=10)
 
+        # Stochastic Weight Averaging
+        swa_callback = StochasticWeightAveraging(swa_lrs=1e-2)
+
         # Trainer
-        trainer = pl.Trainer(
-            accelerator='gpu',
-            devices=1,
-            max_epochs=1000 if not QUICK_TEST else 1,
-            callbacks=[checkpoint_callback, early_stopping_callback],
-            logger=mlflow_logger)
+        trainer = pl.Trainer(accelerator='gpu',
+                             devices=1,
+                             max_epochs=1000 if not QUICK_TEST else 1,
+                             callbacks=[
+                                 checkpoint_callback, early_stopping_callback,
+                                 swa_callback
+                             ],
+                             logger=mlflow_logger)
 
         # Do the thing!
         trainer.fit(model, train_dataloaders=train_dl,
@@ -137,13 +150,15 @@ if __name__ == '__main__':
         mlflow_logger.experiment.log_artifact(mlflow_logger.run_id,
                                               best_model_path)
 
+        # Load model at best checkpoint for next stage
+        del model     # just to be safe
+        model = PLMaskCNN.load_from_checkpoint(best_model_path)
+
     assert best_model_path is not None
     assert mlflow_logger is not None
 
     # Generate artifacts
     print('Generating artifacts...')
-    del model     # just to be safe
-    model = PLMaskCNN.load_from_checkpoint(best_model_path)
     model.eval()
 
     # Generate artifacts from model
@@ -152,10 +167,13 @@ if __name__ == '__main__':
     from rsc.artifacts.accuracy_obsc_handler import AccuracyObscHandler
     from rsc.artifacts.obsc_compare_handler import ObscCompareHandler
     from rsc.artifacts.samples_handler import SamplesHandler
-    generator = ArtifactGenerator(save_dir, model, val_dl)
+    artifacts_dir = save_dir / 'artifacts'
+    artifacts_dir.mkdir(parents=False, exist_ok=True)
+    generator = ArtifactGenerator(artifacts_dir, model, val_dl)
     generator.add_handler(ConfusionMatrixHandler())
     generator.add_handler(AccuracyObscHandler())
     generator.add_handler(ObscCompareHandler())
     generator.add_handler(SamplesHandler())
     generator.run(raise_on_error=False)
-    mlflow_logger.experiment.log_artifacts(mlflow_logger.run_id, str(save_dir))
+    mlflow_logger.experiment.log_artifacts(mlflow_logger.run_id,
+                                           str(artifacts_dir))

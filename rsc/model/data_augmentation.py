@@ -21,8 +21,8 @@ class DataAugmentation(nn.Module):
         # Random offset of mask to re-inforce proper segmentation
         # when labels may be inaccurate
         self.transform_offset = nn.Sequential(
-            kornia.augmentation.RandomAffine(degrees=(-10, 10),
-                                             translate=(0.05, 0.05),
+            kornia.augmentation.RandomAffine(degrees=(-15, 15),
+                                             translate=(0.0625, 0.0625),
                                              p=0.5))
 
         # Transform RGB
