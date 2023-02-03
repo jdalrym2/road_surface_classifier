@@ -9,8 +9,8 @@ import torch.nn.functional as functional
 class DiceBCELoss(nn.Module):
     """ https://www.kaggle.com/code/bigironsphere/loss-function-library-keras-pytorch/notebook#BCE-Dice-Loss """
 
-    def __init__(self, weight=None, size_average=True):
-        super(DiceBCELoss, self).__init__()
+    def __init__(self):
+        super().__init__()
 
     def forward(self, inputs, targets, smooth=1):
 

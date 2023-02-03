@@ -58,13 +58,15 @@ class MCNNLoss(nn.Module):
         self.loss2 = 0.
         self.stage = 0
 
-    def forward(self, y_hat, y, z_hat, z):
+    def forward(self, y_hat, y, z_hat, z, reduce: bool = True):
 
+        # DICE loss for segmentation
         if self.stage in (0, 1):
             self.loss1 = self.dice_loss(y_hat, y)
         else:
             self.loss1 = 0.
 
+        # Cross entropy loss for classification
         if self.stage in (0, 2):
             # Compute weight based on "true" obscuaration
             # Fit a sigmoid from 1->0.1 between 0.9->1 in range
@@ -73,11 +75,12 @@ class MCNNLoss(nn.Module):
             #obsc_w = custom_sigmoid(z[..., 2], (0.4, 0.9), (1, 5), 0.15)
 
             self.loss2 = functional.cross_entropy(
-                z_hat, z, weight=self.class_weights,
-                reduction='mean')     # reduction='none'
+                z_hat,
+                z,
+                weight=self.class_weights,
+                reduction='mean' if reduce else 'none')     # reduction='none'
             #self.loss2 = torch.sum(obsc_w * self.loss2) / torch.sum(obsc_w)
         else:
             self.loss2 = 0.
 
-        loss = self.loss_lambda * self.loss1 + self.loss2
-        return loss
+        return self.loss_lambda * self.loss1 + self.loss2

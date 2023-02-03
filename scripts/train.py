@@ -23,12 +23,13 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, StochasticWeightAveraging
 from pytorch_lightning.loggers import MLFlowLogger
 
-from rsc.model.plmcnn import PLMaskCNN
+from rsc.model.plmcnn_ct import PLMaskCNNCoTeach
 from rsc.model.preprocess import PreProcess
 from rsc.model.road_surface_dataset import RoadSurfaceDataset
 from rsc.artifacts.confusion_matrix_handler import ConfusionMatrixHandler
 
 QUICK_TEST = False
+BATCH_SIZE = 32
 
 if __name__ == '__main__':
 
@@ -64,26 +65,26 @@ if __name__ == '__main__':
         limit=-1 if not QUICK_TEST else 500)
 
     # Create data loaders.
-    batch_size = 64
     train_dl = DataLoader(train_ds,
                           num_workers=16,
-                          batch_size=batch_size,
+                          batch_size=BATCH_SIZE,
                           shuffle=True)
-    val_dl = DataLoader(val_ds, num_workers=16, batch_size=batch_size)
+    val_dl = DataLoader(val_ds, num_workers=16, batch_size=BATCH_SIZE)
 
     # Model
-    model = PLMaskCNN(weights=class_weights,
-                      labels=labels,
-                      learning_rate=(1e-5),
-                      staging_order=(0, ))
+    model = PLMaskCNNCoTeach(weights=class_weights,
+                             labels=labels,
+                             learning_rate=(1e-5),
+                             staging_order=(0, ))
 
     import pickle
     with open(
             '/data/road_surface_classifier/results/20230128_175345Z/stage_1_state_dict.pkl',
             'rb') as f:
         encoder_dict, decoder_dict = pickle.load(f)
-    model.model.encoder.load_state_dict(encoder_dict)
-    model.model.decoder.load_state_dict(decoder_dict)
+    for m in (model.model, model.model_ct):
+        m.encoder.load_state_dict(encoder_dict)
+        m.decoder.load_state_dict(decoder_dict)
 
     # Save model to results directory
     torch.save(model, save_dir / 'model.pth')
@@ -127,17 +128,15 @@ if __name__ == '__main__':
                                                 patience=10)
 
         # Stochastic Weight Averaging
-        swa_callback = StochasticWeightAveraging(swa_lrs=1e-2)
+        # swa_callback = StochasticWeightAveraging(swa_lrs=1e-2)
 
         # Trainer
-        trainer = pl.Trainer(accelerator='gpu',
-                             devices=1,
-                             max_epochs=1000 if not QUICK_TEST else 1,
-                             callbacks=[
-                                 checkpoint_callback, early_stopping_callback,
-                                 swa_callback
-                             ],
-                             logger=mlflow_logger)
+        trainer = pl.Trainer(
+            accelerator='gpu',
+            devices=1,
+            max_epochs=1000 if not QUICK_TEST else 1,
+            callbacks=[checkpoint_callback, early_stopping_callback],
+            logger=mlflow_logger)
 
         # Do the thing!
         trainer.fit(model, train_dataloaders=train_dl,
@@ -152,7 +151,7 @@ if __name__ == '__main__':
 
         # Load model at best checkpoint for next stage
         del model     # just to be safe
-        model = PLMaskCNN.load_from_checkpoint(best_model_path)
+        model = PLMaskCNNCoTeach.load_from_checkpoint(best_model_path)
 
     assert best_model_path is not None
     assert mlflow_logger is not None

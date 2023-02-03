@@ -39,9 +39,10 @@ class PLMaskCNN(pl.LightningModule):
         self.loss = MCNNLoss(self.weights, self.loss_lambda)
         self.model = MaskCNN(num_classes=len(self.labels))
 
-    def set_stage(self, v, lr):
-        first_stage = (self.model.encoder, self.model.decoder)
-        second_stage = (self.model.encoder2, self.model.avgpool, self.model.fc)
+    @staticmethod
+    def set_stage_for_model(model: MaskCNN, v):
+        first_stage = (model.encoder, model.decoder)
+        second_stage = (model.encoder2, model.avgpool, model.fc)
 
         # Freeze / unfreeze components based on stage
         if v == 0:
@@ -56,6 +57,9 @@ class PLMaskCNN(pl.LightningModule):
         else:
             raise ValueError(f'Unknown v: {repr(v):s}')
 
+    def set_stage(self, v, lr):
+        self.set_stage_for_model(self.model, v)
+
         # Loss function requires stage
         self.loss.stage = v
 
@@ -68,11 +72,17 @@ class PLMaskCNN(pl.LightningModule):
     def forward(self, x):
         return self.model(x)
 
-    def training_step(self, batch, batch_idx):
+    def training_prep_batch(self, batch):
         x, z = batch
-        x, xpm = self.transform(x)
+        x, y = self.transform(x)
+
+        return x, y, z
+
+    def training_step(self, batch, batch_idx):
+        x, y, z = self.training_prep_batch(batch)
+
         y_hat, z_hat = self.forward(x)
-        loss = self.loss(y_hat, xpm, z_hat, z)
+        loss = self.loss(y_hat, y, z_hat, z)
         self.log_dict(
             {
                 'train_loss_im': self.loss.loss1,
@@ -83,12 +93,19 @@ class PLMaskCNN(pl.LightningModule):
             on_epoch=True)
         return loss
 
-    def validation_step(self, batch, batch_idx):
+    def validation_prep_batch(self, batch):
         x, z = batch
 
         # Create image + mask, probmask (be careful, order matters!)
         y = x[:, 5:6, :, :]
         x = x[:, 0:5, :, :]
+
+        return x, y, z
+
+    def validation_step(self, batch, batch_idx):
+
+        # Prep batch
+        x, y, z = self.validation_prep_batch(batch)
 
         y_hat, z_hat = self.forward(x)
         loss = self.loss(y_hat, y, z_hat, z)
