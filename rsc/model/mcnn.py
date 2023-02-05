@@ -125,6 +125,11 @@ class Resnet18Encoder(FreezableModule):
 
         return x
 
+    def reset_parameters(self):
+        for layer in self.children():
+            if hasattr(layer, 'reset_parameters'):
+                layer.reset_parameters()
+
 
 class Resnet34Encoder(FreezableModule):
 

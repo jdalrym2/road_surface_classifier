@@ -74,8 +74,9 @@ if __name__ == '__main__':
     # Model
     model = PLMaskCNNCoTeach(weights=class_weights,
                              labels=labels,
-                             learning_rate=(1e-5),
-                             staging_order=(0, ))
+                             learning_rate=(5e-6),
+                             staging_order=(0, ),
+                             loss_lambda=0.0)
 
     import pickle
     with open(
@@ -118,13 +119,15 @@ if __name__ == '__main__':
         # Save checkpoints (model states for later)
         checkpoint_callback = ModelCheckpoint(
             dirpath=str(save_dir),
-            monitor='val_loss',
+            monitor='acc',
+            mode='max',
             save_top_k=3,
-            filename='model-%d-{epoch:02d}-{val_loss:.5f}' % stage)
+            filename='model-%d-{epoch:02d}-{acc:.5f}' %
+            stage)     # 'model-%d-{epoch:02d}-{val_loss:.5f}' % stage
 
         # Setup early stopping based on validation loss
-        early_stopping_callback = EarlyStopping(monitor='val_loss',
-                                                mode='min',
+        early_stopping_callback = EarlyStopping(monitor='acc',
+                                                mode='max',
                                                 patience=10)
 
         # Stochastic Weight Averaging

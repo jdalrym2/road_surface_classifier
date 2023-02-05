@@ -107,13 +107,18 @@ class PLMaskCNN(pl.LightningModule):
         # Prep batch
         x, y, z = self.validation_prep_batch(batch)
 
+        # For compute accuracy
+        z_true = torch.argmax(z[:, (0, 1)], 1)
+
         y_hat, z_hat = self.forward(x)
         loss = self.loss(y_hat, y, z_hat, z)
+        acc = (z_true == torch.argmax(z_hat[:, (0, 1)], 1)).sum() / z.shape[0]
         self.log_dict(
             {
                 'val_loss_im': self.loss.loss1,
                 'val_loss_cl': self.loss.loss2,
                 'val_loss': loss,
+                'acc': acc
             },
             on_step=False,
             on_epoch=True)
