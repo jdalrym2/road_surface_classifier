@@ -74,12 +74,12 @@ if __name__ == '__main__':
     # Model
     model = PLMaskCNN(weights=class_weights,
                       labels=labels,
-                      learning_rate=(1e-5),
+                      learning_rate=(1e-4, ),
                       staging_order=(0, ))
 
     import pickle
     with open(
-            '/data/road_surface_classifier/results/20230128_175345Z/stage_1_state_dict.pkl',
+            '/data/road_surface_classifier/results/20230223_043053Z/stage_1_state_dict.pkl',
             'rb') as f:
         encoder_dict, decoder_dict = pickle.load(f)
     model.model.encoder.load_state_dict(encoder_dict)

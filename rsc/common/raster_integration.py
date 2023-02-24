@@ -93,4 +93,4 @@ def transverse_grid(x1: float, y1: float, x2: float,
         coords.append((np.floor(x), np.floor(y)))
 
     # Return result as numpy array
-    return np.array(coords), np.array(lengths)
+    return np.array(coords, dtype=int), np.array(lengths)

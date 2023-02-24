@@ -272,7 +272,7 @@ class MaskCNN(nn.Module):
         # so we only fetch the former
         # NOTE: the paper recommends multiplication, but in this case
         # concat-ing the segmentation mask seems to produce better results
-        #x = torch.multiply(x[:, 0:4, ...], y)
+        # x = torch.multiply(x[:, 0:4, ...], y)
         x = torch.concat((x[:, 0:4, ...], y), dim=1)
 
         # Updated Image -> Features
