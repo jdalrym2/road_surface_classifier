@@ -10,6 +10,7 @@ class PreProcess(nn.Module):
 
     def __init__(self):
         super().__init__()
+        self.resize = kornia.augmentation.Resize(224, keepdim=True)
 
     @torch.no_grad()
     def forward(self, x) -> torch.Tensor:
@@ -18,6 +19,7 @@ class PreProcess(nn.Module):
 
         # Convert to tensor
         x = kornia.utils.image_to_tensor(x, keepdim=True).float()
+        x = self.resize(x)
 
         # Normalize between 0 and 1
         x = torch.divide(x, 255.)
