@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import torch
+import optuna
 import pytorch_lightning as pl
 
 from .data_augmentation import DataAugmentation
@@ -13,6 +14,7 @@ from .mcnn_loss import MCNNLoss
 class PLMaskCNN(pl.LightningModule):
 
     def __init__(self,
+                 trial: optuna.trial.Trial,
                  labels,
                  weights,
                  learning_rate: tuple | float = 1e-4,
@@ -31,6 +33,14 @@ class PLMaskCNN(pl.LightningModule):
         self.labels = labels
         self.weights = weights
         self.save_hyperparameters()
+
+        # Optuna trial
+        self.trial = trial
+
+        # Stateful min val_loss_cl
+        self.min_val_loss = float('inf')
+        self.min_val_loss_im = float('inf')
+        self.min_val_loss_cl = float('inf')
 
         # Stateful learning rate
         self._lr = learning_rate[0]
@@ -101,6 +111,27 @@ class PLMaskCNN(pl.LightningModule):
             on_step=False,
             on_epoch=True)
         return loss
+
+    def on_validation_epoch_end(self):
+
+        metrics = self.trainer.logged_metrics
+        this_val_loss = float(metrics['val_loss'])
+        this_val_loss_im = float(metrics['val_loss_im'])
+        this_val_loss_cl = float(metrics['val_loss_cl'])
+
+        self.min_val_loss = min(self.min_val_loss, this_val_loss)
+        self.min_val_loss_im = min(self.min_val_loss_im, this_val_loss_im)
+        self.min_val_loss_cl = min(self.min_val_loss_cl, this_val_loss_cl)
+
+        self.log_dict({
+            'min_val_loss_im': self.min_val_loss_im,
+            'min_val_loss_cl': self.min_val_loss_cl,
+            'min_val_loss': self.min_val_loss,
+        })
+
+        self.trial.report(this_val_loss_cl, self.current_epoch)
+        if self.trial.should_prune():
+            raise optuna.exceptions.TrialPruned()
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self._lr)
