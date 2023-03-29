@@ -31,7 +31,7 @@ from rsc.model.plmcnn import PLMaskCNN
 from rsc.model.preprocess import PreProcess
 from rsc.model.road_surface_dataset import RoadSurfaceDataset
 
-QUICK_TEST = True
+QUICK_TEST = False
 
 
 def objective(trial: optuna.trial.Trial) -> float:
@@ -85,9 +85,8 @@ def objective(trial: optuna.trial.Trial) -> float:
     model = PLMaskCNN(trial=trial,
                       weights=class_weights,
                       labels=labels,
-                      learning_rate=(learning_rate, ),
-                      loss_lambda=loss_lambda,
-                      staging_order=(0, ))
+                      learning_rate=learning_rate,
+                      loss_lambda=loss_lambda)
 
     # Save model to results directory
     torch.save(model, save_dir / 'model.pth')
@@ -103,62 +102,60 @@ def objective(trial: optuna.trial.Trial) -> float:
     best_model_path: Optional[str] = None
     best_val_loss = float('inf')
     mlflow_logger: Optional[MLFlowLogger] = None
-    for stage, lr in zip(model.staging_order, model.learning_rate):
-        print('Training stage %d...' % stage)
 
-        # Set stage, which freezes / unfreezes layers
-        model.set_stage(stage, lr)
+    # Set stage, which freezes / unfreezes layers
+    stage = 0
+    model.set_stage(stage, learning_rate)
 
-        # Logger
-        mlflow_logger = MLFlowLogger(
-            experiment_name='road_surface_classifier_optuna_qt2',
-            run_name='run_%s_%d_trial_%d' % (now, stage, trial.number),
-            tracking_uri='http://truenas:9809')
+    # Logger
+    mlflow_logger = MLFlowLogger(
+        experiment_name='road_surface_classifier_optuna',
+        run_name='run_%s_%d_trial_%d' % (now, stage, trial.number),
+        tracking_uri='http://truenas:9809')
+    mlflow_logger.log_hyperparams(dict(chip_size=chip_size, swa_lrs=swa_lrs))
 
-        # Upload base model
-        mlflow_logger.experiment.log_artifact(mlflow_logger.run_id,
-                                              str(save_dir / 'model.pth'))
+    # Upload base model
+    mlflow_logger.experiment.log_artifact(mlflow_logger.run_id,
+                                          str(save_dir / 'model.pth'))
 
-        # Save checkpoints (model states for later)
-        checkpoint_callback = ModelCheckpoint(
-            dirpath=str(save_dir),
-            monitor='val_loss',
-            save_top_k=1,
-            filename='model-%d-{epoch:02d}-{val_loss:.5f}' % stage)
+    # Save checkpoints (model states for later)
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=str(save_dir),
+        monitor='val_loss',
+        save_top_k=1,
+        filename='model-%d-{epoch:02d}-{val_loss:.5f}' % stage)
 
-        # Setup early stopping based on validation loss
-        early_stopping_callback = EarlyStopping(monitor='val_loss',
-                                                mode='min',
-                                                patience=25)
+    # Setup early stopping based on validation loss
+    early_stopping_callback = EarlyStopping(monitor='val_loss',
+                                            mode='min',
+                                            patience=10)
 
-        # Stochastic Weight Averaging
-        swa_callback = StochasticWeightAveraging(swa_lrs=swa_lrs)
+    # Stochastic Weight Averaging
+    swa_callback = StochasticWeightAveraging(swa_lrs=swa_lrs)
 
-        # Trainer
-        trainer = pl.Trainer(accelerator='gpu',
-                             devices=1,
-                             max_epochs=300,
-                             callbacks=[
-                                 checkpoint_callback, early_stopping_callback,
-                                 swa_callback
-                             ],
-                             logger=mlflow_logger)
+    # Trainer
+    trainer = pl.Trainer(
+        accelerator='gpu',
+        devices=1,
+        max_epochs=300,
+        callbacks=[checkpoint_callback, early_stopping_callback, swa_callback],
+        logger=mlflow_logger)
 
-        # Do the thing!
-        trainer.fit(model, train_dataloaders=train_dl,
-                    val_dataloaders=val_dl)     # type: ignore
+    # Do the thing!
+    trainer.fit(model, train_dataloaders=train_dl,
+                val_dataloaders=val_dl)     # type: ignore
 
-        # Get best model path
-        best_model_path = checkpoint_callback.best_model_path
-        best_val_loss = model.min_val_loss_cl
+    # Get best model path
+    best_model_path = checkpoint_callback.best_model_path
+    best_val_loss = model.min_val_loss_cl
 
-        # Upload best model
-        mlflow_logger.experiment.log_artifact(mlflow_logger.run_id,
-                                              best_model_path)
+    # Upload best model
+    mlflow_logger.experiment.log_artifact(mlflow_logger.run_id,
+                                          best_model_path)
 
-        # Load model at best checkpoint for next stage
-        del model     # just to be safe
-        model = PLMaskCNN.load_from_checkpoint(best_model_path)
+    # Load model at best checkpoint for next stage
+    del model     # just to be safe
+    model = PLMaskCNN.load_from_checkpoint(best_model_path)
 
     assert best_model_path is not None
     assert mlflow_logger is not None
@@ -186,17 +183,19 @@ def objective(trial: optuna.trial.Trial) -> float:
     generator.run(raise_on_error=False)
     mlflow_logger.experiment.log_artifacts(mlflow_logger.run_id,
                                            str(artifacts_dir))
+    mlflow_logger.log_metrics(dict(roc_auc=auc_handler.roc_auc))
 
     return best_val_loss
 
 
 if __name__ == '__main__':
 
+    num_trials = 300
     now = datetime.utcnow().strftime(
         '%Y%m%d_%H%M%SZ')     # timestamp string used for traceability
     study_name = 'study_%s' % now
 
-    for _ in range(101):
+    for _ in range(num_trials + 1):
         try:
             study = optuna.create_study(
                 direction='minimize',
@@ -204,10 +203,10 @@ if __name__ == '__main__':
                                                    n_warmup_steps=5,
                                                    interval_steps=1,
                                                    n_min_trials=5),
-                storage='sqlite:///./optuna_qt.sqlite3',
+                storage='sqlite:///./optuna_rsc.sqlite3',
                 study_name=study_name,
                 load_if_exists=True)
-            study.optimize(objective, n_trials=100)
+            study.optimize(objective, n_trials=num_trials)
         except Exception:
             traceback.print_exc()
             print('Restarting study...')
@@ -215,7 +214,7 @@ if __name__ == '__main__':
             break
 
     print("Best trial:")
-    trial = study.best_trial
+    trial = study.best_trial     # type: ignore
 
     print("  Value: {}".format(trial.value))
 

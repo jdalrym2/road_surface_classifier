@@ -17,19 +17,13 @@ class PLMaskCNN(pl.LightningModule):
                  trial: optuna.trial.Trial,
                  labels,
                  weights,
-                 learning_rate: tuple | float = 1e-4,
-                 loss_lambda=0.1,
-                 staging_order=(0, )):
+                 learning_rate: float = 1e-4,
+                 loss_lambda: float = 0.1):
         super().__init__()
 
         # Hyperparameters
-        if isinstance(learning_rate, float):
-            learning_rate = tuple([learning_rate] * len(staging_order))
-        else:
-            assert len(learning_rate) == len(staging_order)
-        self.learning_rate = tuple(learning_rate)
+        self.learning_rate = learning_rate
         self.loss_lambda = loss_lambda
-        self.staging_order = staging_order
         self.labels = labels
         self.weights = weights
         self.save_hyperparameters()
@@ -43,7 +37,7 @@ class PLMaskCNN(pl.LightningModule):
         self.min_val_loss_cl = float('inf')
 
         # Stateful learning rate
-        self._lr = learning_rate[0]
+        self._lr = learning_rate
 
         self.transform = DataAugmentation()
         self.loss = MCNNLoss(self.weights, self.loss_lambda)
