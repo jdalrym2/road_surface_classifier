@@ -8,4 +8,5 @@ data/
 *.code-workspace
 *.tar.gz
 *.npz
-results
+build/
+*.egg-info
