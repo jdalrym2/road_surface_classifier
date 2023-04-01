@@ -8,9 +8,9 @@ import argparse
 import torch
 from torch.utils.data import DataLoader
 
-from ..model.plmcnn import PLMaskCNN
-from ..model.road_surface_dataset import RoadSurfaceDataset
-from ..model.preprocess import PreProcess
+from ..train.plmcnn import PLMaskCNN
+from ..train.dataset import RoadSurfaceDataset
+from ..train.preprocess import PreProcess
 
 from . import find_best_model
 from .base import ArtifactGenerator

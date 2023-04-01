@@ -5,7 +5,6 @@ import pathlib
 from typing import Any
 import pandas as pd
 import numpy as np
-import PIL.Image
 
 import torch
 from torch.utils.data import Dataset
@@ -21,7 +20,6 @@ assert IMAGERY_PATH.is_dir()
 
 
 class MassInferenceDataset(Dataset):
-
     def __init__(self,
                  sqlite_path: pathlib.Path,
                  transform,
@@ -49,7 +47,7 @@ class MassInferenceDataset(Dataset):
     def __getitem__(self, idx):
 
         # Get row
-        row: Any = self.df.iloc[idx]     # type: ignore
+        row: Any = self.df.iloc[idx]  # type: ignore
 
         x1, y1, x2, y2 = [row[e].item() for e in ('x1', 'y1', 'x2', 'y2')]
 

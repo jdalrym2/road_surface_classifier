@@ -88,10 +88,3 @@ def get_naip_file(object_name: str,
     naip_s3_fetch(bucket_name, object_name, output_path)
 
     return output_path
-
-
-if __name__ == '__main__':
-    #for ext in ('.idx', '.mrf', '.mrf.aux.xml', '.lrc'):
-    for ext in ('.tif', '.tif.aux.xml'):
-        get_naip_file(
-            f'co/2019/60cm/rgbir/39104/m_3910460_sw_13_060_20190908{ext:s}')

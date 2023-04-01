@@ -1,0 +1,15 @@
+# from `python3 -m pipreqs.pipreqs .`
+boto3==1.26.104
+GDAL==3.2.2
+kornia==0.6.11
+matplotlib==3.4.3
+numpy==1.21.2
+pandas==1.3.3
+Pillow==9.5.0
+pytorch_lightning==2.0.1
+requests==2.27.1
+scikit_learn==1.2.2
+scipy==1.7.1
+torch==2.0.0
+torchvision==0.15.1
+tqdm==4.64.0
