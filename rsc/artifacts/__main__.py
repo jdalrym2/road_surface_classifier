@@ -18,6 +18,7 @@ from .confusion_matrix_handler import ConfusionMatrixHandler
 from .accuracy_obsc_handler import AccuracyObscHandler
 from .obsc_compare_handler import ObscCompareHandler
 from .samples_handler import SamplesHandler
+from .auc_handler import AUCHandler
 
 
 def parse_args():
@@ -128,4 +129,5 @@ if __name__ == '__main__':
     generator.add_handler(AccuracyObscHandler())
     generator.add_handler(ObscCompareHandler())
     generator.add_handler(SamplesHandler())
+    generator.add_handler(AUCHandler())
     generator.run(raise_on_error=False)

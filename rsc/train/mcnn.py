@@ -1,4 +1,3 @@
-from turtle import forward, pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as functional
@@ -126,92 +125,6 @@ class Resnet18Encoder(FreezableModule):
         return x
 
 
-class Resnet34Encoder(FreezableModule):
-
-    def __init__(self, in_channels=3):
-        super().__init__()
-
-        # Get Resnet34 w/ default weights
-        self.rnet = torchvision.models.resnet34(
-            weights=torchvision.models.ResNet34_Weights.DEFAULT)
-
-        if in_channels != 3:
-            self.rnet.conv1 = nn.Conv2d(in_channels,
-                                        64,
-                                        kernel_size=(7, 7),
-                                        stride=(2, 2),
-                                        padding=(3, 3),
-                                        bias=False)
-
-        self.rnet.maxpool.return_indices = True
-
-        # Delete final avg pool / linear layer
-        del self.rnet.avgpool
-        del self.rnet.fc
-
-        # Features for cross-connections to decoder
-        self.feats = [
-            torch.Tensor([]),
-            torch.Tensor([]),
-            torch.Tensor([]),
-            torch.Tensor([])
-        ]
-        self.maxpool_idxs = None
-
-    def forward(self, x):
-        # Building up to stuff
-        x = self.rnet.conv1(x)
-        x = self.rnet.bn1(x)
-        x = self.rnet.relu(x)
-        x, self.maxpool_idxs = self.rnet.maxpool(x)
-
-        # Now the main layers
-        self.feats[0] = x
-        x = self.rnet.layer1(x)
-
-        self.feats[1] = x
-        x = self.rnet.layer2(x)
-
-        self.feats[2] = x
-        x = self.rnet.layer3(x)
-
-        self.feats[3] = x
-        x = self.rnet.layer4(x)
-
-        return x
-
-
-class Resnet50Decoder(FreezableModuleList):
-
-    def __init__(self):
-        super().__init__()
-
-        self.layer_1 = DecoderBlock(2048, 1024)
-        self.layer_2 = DecoderBlock(1024, 512)
-        self.layer_3 = DecoderBlock(512, 256)
-        self.layer_4 = DecoderBlock(256, 64, kernel_size=5)
-
-        self.unpool = MaxUnpool2d(kernel_size=3, stride=2, padding=1)
-        self.final_1 = nn.Conv2d(64, 1, 3)
-        self.relu = nn.ReLU(inplace=True)
-        self.final_2 = nn.Conv2d(1, 1, 3)
-
-    def forward(self, x, encoder_feats, maxpool_idxs):
-
-        x = self.layer_1(x, encoder_feats[3])
-        x = self.layer_2(x, encoder_feats[2])
-        x = self.layer_3(x, encoder_feats[1])
-        x = self.layer_4(x, encoder_feats[0])
-        x = self.unpool(x, maxpool_idxs, output_size=(128, 128))
-
-        x = self.final_1(x)
-        x = self.relu(x)
-        x = self.final_2(x)
-        x = functional.interpolate(x, (256, 256))
-
-        return x
-
-
 class Resnet18Decoder(FreezableModuleList):
 
     def __init__(self):
@@ -220,7 +133,7 @@ class Resnet18Decoder(FreezableModuleList):
         self.layer_1 = DecoderBlock(512, 256)
         self.layer_2 = DecoderBlock(256, 128)
         self.layer_3 = DecoderBlock(128, 64)
-        self.layer_4 = DecoderBlock(64, 64, kernel_size=5)
+        self.layer_4 = DecoderBlock(64, 64, kernel_size=1)
 
         self.unpool = MaxUnpool2d(kernel_size=3, stride=2, padding=1)
         self.final_1 = nn.Conv2d(64, 2, 3)
@@ -234,12 +147,12 @@ class Resnet18Decoder(FreezableModuleList):
         x = self.layer_2(x, encoder_feats[2])
         x = self.layer_3(x, encoder_feats[1])
         x = self.layer_4(x, encoder_feats[0])
-        x = self.unpool(x, maxpool_idxs, output_size=(128, 128))
+        x = self.unpool(x, maxpool_idxs, output_size=(112, 112))
 
         x = self.final_1(x)
         x = self.relu(x)
         x = self.final_2(x)
-        x = functional.interpolate(x, (256, 256))
+        x = functional.interpolate(x, (224, 224))
         x = self.softmax(x)
 
         return x
@@ -249,6 +162,7 @@ class MaskCNN(nn.Module):
 
     def __init__(self, num_classes=2):
         super().__init__()
+
         # Segmentation stage
         self.encoder = Resnet18Encoder(in_channels=5)
         self.decoder = Resnet18Decoder()

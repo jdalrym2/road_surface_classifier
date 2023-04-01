@@ -8,6 +8,8 @@ import PIL.Image
 import torch
 from torch.utils.data import Dataset
 
+from torchvision.transforms import CenterCrop
+
 import torch.multiprocessing
 
 # Prevents file descriptor errors when doing multiprocessing fetches
@@ -16,7 +18,12 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 
 class RoadSurfaceDataset(Dataset):
 
-    def __init__(self, df_path, transform, n_channels=4, limit=-1):
+    def __init__(self,
+                 df_path,
+                 transform,
+                 chip_size=256,
+                 n_channels=4,
+                 limit=-1):
 
         # Load dataframe, interpret lenght
         self.df = pd.read_csv(df_path)
@@ -27,6 +34,9 @@ class RoadSurfaceDataset(Dataset):
 
         # Number of classes
         self.n_classes = self.df['class_num'].max() + 1
+
+        # Center crop
+        self.cc = CenterCrop(chip_size)
 
         # Transformation object
         self.transform = transform
@@ -41,7 +51,7 @@ class RoadSurfaceDataset(Dataset):
 
         # Image
         with PIL.Image.open(row.chip_path) as pim:
-            im = np.array(pim)
+            im = np.array(self.cc(pim))
         tn = im.shape[2] if im.ndim == 3 else 1
         if tn > self.n_channels:
             print(
@@ -51,7 +61,7 @@ class RoadSurfaceDataset(Dataset):
 
         # Mask
         with PIL.Image.open(row.mask_path) as pmask:
-            mask = np.array(pmask)
+            mask = np.array(self.cc(pmask))
         if mask.ndim == 2:
             mask = mask[:, :, np.newaxis]
         tn = im.shape[2]
@@ -60,7 +70,7 @@ class RoadSurfaceDataset(Dataset):
 
         # Prob mask
         with PIL.Image.open(row.probmask_path) as pmask:
-            probmask = np.array(pmask)
+            probmask = np.array(self.cc(pmask))
         if probmask.ndim == 2:
             probmask = probmask[:, :, np.newaxis]
         tn = im.shape[2]
