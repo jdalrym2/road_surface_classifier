@@ -123,9 +123,10 @@ class PLMaskCNN(pl.LightningModule):
             'min_val_loss': self.min_val_loss,
         })
 
-        self.trial.report(this_val_loss_cl, self.current_epoch)
-        if self.trial.should_prune():
-            raise optuna.exceptions.TrialPruned()
+        if self.trial is not None:
+            self.trial.report(this_val_loss_cl, self.current_epoch)
+            if self.trial.should_prune():
+                raise optuna.exceptions.TrialPruned()
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self._lr)
