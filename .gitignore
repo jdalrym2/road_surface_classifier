@@ -10,3 +10,4 @@ data/
 *.npz
 build/
 *.egg-info
+venv/
