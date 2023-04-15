@@ -56,7 +56,7 @@ class AUCHandler(ArtifactHandler):
         disp = sklearn.metrics.RocCurveDisplay.from_predictions(y_true_l,
                                                                 y_pred_c,
                                                                 ax=ax)
-        self.roc_auc = disp.roc_auc
+        self.roc_auc = disp.roc_auc  # type: ignore
         ax.set_title('ROC Curve')
 
         plt_path = output_dir / 'roc_curve.png'

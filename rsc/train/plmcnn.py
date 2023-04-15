@@ -14,7 +14,7 @@ from .mcnn_loss import MCNNLoss
 class PLMaskCNN(pl.LightningModule):
 
     def __init__(self,
-                 trial: optuna.trial.Trial,
+                 trial: optuna.trial.Trial | None,
                  labels,
                  weights,
                  learning_rate: float = 1e-4,

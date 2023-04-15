@@ -4,7 +4,7 @@
 from __future__ import annotations
 import pathlib
 
-from osm.overpass_api import OSMOverpassQuery, OSMOverpassResult
+from rsc.osm.overpass_api import OSMOverpassQuery, OSMOverpassResult
 
 
 class OSMCustomOverpassQuery(OSMOverpassQuery):

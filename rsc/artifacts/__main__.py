@@ -69,6 +69,10 @@ def parse_args():
                         action='store_true',
                         help='If specified, do not shuffle '
                         'the dataset when loading.')
+    parser.add_argument('--raise-on-error',
+                        action='store_true',
+                        help='If specified, stop processing when '
+                        'encountering an error.')
 
     return parser.parse_args()
 
@@ -129,5 +133,5 @@ if __name__ == '__main__':
     generator.add_handler(AccuracyObscHandler())
     generator.add_handler(ObscCompareHandler())
     generator.add_handler(SamplesHandler())
-    generator.add_handler(AUCHandler())
-    generator.run(raise_on_error=False)
+    # generator.add_handler(AUCHandler())
+    generator.run(raise_on_error=pargs.raise_on_error)

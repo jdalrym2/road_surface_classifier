@@ -1,8 +1,8 @@
 boto3
+numpy
 GDAL>3,<=3.4.1
 kornia
 matplotlib
-numpy
 pandas
 Pillow
 pytorch_lightning

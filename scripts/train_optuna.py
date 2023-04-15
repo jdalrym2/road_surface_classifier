@@ -25,11 +25,10 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, Stochast
 from pytorch_lightning.loggers import MLFlowLogger
 
 import optuna
-from optuna.integration import PyTorchLightningPruningCallback
 
-from rsc.model.plmcnn import PLMaskCNN
-from rsc.model.preprocess import PreProcess
-from rsc.model.road_surface_dataset import RoadSurfaceDataset
+from rsc.train.plmcnn import PLMaskCNN
+from rsc.train.preprocess import PreProcess
+from rsc.train.dataset import RoadSurfaceDataset
 
 QUICK_TEST = False
 
@@ -204,7 +203,7 @@ if __name__ == '__main__':
                                                    interval_steps=1,
                                                    n_min_trials=5),
                 storage='sqlite:///./optuna_rsc.sqlite3',
-                study_name=study_name,
+                study_name='study_20230329_014946Z',
                 load_if_exists=True)
             study.optimize(objective, n_trials=num_trials)
         except Exception:

@@ -37,7 +37,8 @@ class ConfusionMatrixHandler(ArtifactHandler):
         _, features = dl_iter
 
         # We extract just the image + location mask
-        self.y_true_l.append(features.numpy()[..., :2])
+        y_true = features.numpy()[..., :-1]
+        self.y_true_l.append(y_true)
 
         # Get prediction from model
         _, pred = model_out
@@ -64,8 +65,14 @@ class ConfusionMatrixHandler(ArtifactHandler):
                                                     normalize='true'),
                                    display_labels=self.labels)
         output_path = output_dir / 'confusion_matrix.png'
-        fig, ax = plt.subplots()
-        c.plot(ax=ax, cmap=plt.cm.Blues)     # type: ignore
+        fig, ax = plt.subplots(figsize=(8, 8))
+        fig.subplots_adjust(left=0.2, bottom=0.2)
+        try:
+            c.plot(ax=ax, cmap=plt.cm.Blues,
+                   xticks_rotation='vertical')     # type: ignore
+        except ValueError:
+            print('Detected issue with plot! This is likely due to a mismatch of class labels and true labels.')
+            raise
         fig.savefig(str(output_path))
         plt.close(fig)
 
