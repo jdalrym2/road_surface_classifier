@@ -29,7 +29,7 @@ class ConfusionMatrixHandler(ArtifactHandler):
     def start(self, model: Any, dataloader: DataLoader) -> None:
 
         # Try to get labels from model
-        self.labels = model.__dict__.get('labels')[:-1]     # trim obsc label
+        self.labels = model.__dict__.get('labels')
 
     def on_iter(self, dl_iter: Sequence, model_out: Sequence) -> None:
 
@@ -37,7 +37,7 @@ class ConfusionMatrixHandler(ArtifactHandler):
         _, features = dl_iter
 
         # We extract just the image + location mask
-        y_true = features.numpy()[..., :-1]
+        y_true = features.numpy()[..., :-2]
         self.y_true_l.append(y_true)
 
         # Get prediction from model
@@ -49,7 +49,7 @@ class ConfusionMatrixHandler(ArtifactHandler):
             self.labels = [f'Class {n+1:d}' for n in range(len(pred))]
 
         # Get predicted label as argmax
-        y_pred = np.argmax(pred[..., :-1], axis=1)
+        y_pred = np.argmax(pred[..., :-2], axis=1)
         self.y_pred_l.append(y_pred)
 
     def save(self, output_dir) -> pathlib.Path:

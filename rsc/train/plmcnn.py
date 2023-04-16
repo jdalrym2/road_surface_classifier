@@ -16,6 +16,7 @@ class PLMaskCNN(pl.LightningModule):
     def __init__(self,
                  trial: optuna.trial.Trial | None,
                  labels,
+                 top_level_map,
                  weights,
                  learning_rate: float = 1e-4,
                  loss_lambda: float = 0.1):
@@ -25,6 +26,7 @@ class PLMaskCNN(pl.LightningModule):
         self.learning_rate = learning_rate
         self.loss_lambda = loss_lambda
         self.labels = labels
+        self.top_level_map = top_level_map
         self.weights = weights
         self.save_hyperparameters()
 
@@ -40,8 +42,8 @@ class PLMaskCNN(pl.LightningModule):
         self._lr = learning_rate
 
         self.transform = DataAugmentation()
-        self.loss = MCNNLoss(self.weights, self.loss_lambda)
-        self.model = MaskCNN(num_classes=len(self.labels))
+        self.loss = MCNNLoss(self.top_level_map, self.weights, self.loss_lambda)
+        self.model = MaskCNN(num_classes=len(self.labels) + 2)  # for obscuration
 
     def set_stage(self, v, lr):
         first_stage = (self.model.encoder, self.model.decoder)

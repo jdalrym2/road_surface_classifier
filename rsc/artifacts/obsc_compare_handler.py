@@ -39,8 +39,8 @@ class ObscCompareHandler(ArtifactHandler):
         pred = pred.cpu().detach().numpy()
 
         # Get predicted label as argmax
-        self.y_pred_l.append(pred[..., -1])
-        self.y_true_l.append(features[..., -1])
+        self.y_pred_l.append(pred[..., -2])
+        self.y_true_l.append(features[..., -2])
 
     def save(self, output_dir) -> pathlib.Path:
         y_pred = np.concatenate(self.y_pred_l) * 100.

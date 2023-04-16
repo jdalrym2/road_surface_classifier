@@ -30,7 +30,7 @@ class AccuracyObscHandler(ArtifactHandler):
     def start(self, model: Any, dataloader: DataLoader) -> None:
         
         # Try to get labels from model
-        self.labels = model.__dict__.get('labels')[:-1]     # trim obsc label
+        self.labels = model.__dict__.get('labels')
 
     def on_iter(self, dl_iter: Sequence, model_out: Sequence) -> None:
 
@@ -41,17 +41,17 @@ class AccuracyObscHandler(ArtifactHandler):
         pred = pred.cpu().detach().numpy()
 
         # Get predicted label as argmax
-        this_y_pred = np.argmax(pred[..., :-1], axis=1)
-        this_y_true = np.argmax(features[..., :-1], axis=1)
+        this_y_pred = np.argmax(pred[..., :-2], axis=1)
+        this_y_true = np.argmax(features[..., :-2], axis=1)
         self.y_true_l.append(this_y_true)
         self.acc_l.append((this_y_pred == this_y_true).astype(int))
-        self.y_true_obsc_l.append(features[..., -1])
+        self.y_true_obsc_l.append(features[..., -2])
 
     @staticmethod
     def compute_scores(
             n_labels: int,
             acc: np.ndarray,
-            y_true: np.ndarray) -> tuple[float, float, float, float]:
+            y_true: np.ndarray) -> tuple[float, np.ndarray, np.ndarray]:
         """
         Compute accuracy scores and relevant data for plotting.
 
@@ -179,4 +179,4 @@ class AccuracyObscHandler(ArtifactHandler):
         fig.savefig(str(cumul_path))
         plt.close(fig)
 
-        return binned_path #, cumul_path
+        return binned_path, cumul_path

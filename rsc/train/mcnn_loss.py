@@ -5,14 +5,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as functional
 
+from .rsc_hxe_loss import RSCHXELoss
+
 
 class MCNNLoss(nn.Module):
 
-    def __init__(self, class_weights, loss_lambda):
+    def __init__(self, top_lv_map, class_weights, loss_lambda):
         super().__init__()
+        self.top_lv_map = torch.Tensor(top_lv_map).float().cuda()
         self.class_weights = torch.Tensor(class_weights).float().cuda()
         self.loss_lambda = loss_lambda
         self.smooth = 1     # Dice-BCE loss smoothing parameter, will just hardcode to 1
+
+        self.hxe_loss = RSCHXELoss(self.top_lv_map, self.class_weights)
 
         self.loss1 = 0.
         self.loss2 = 0.
@@ -50,11 +55,12 @@ class MCNNLoss(nn.Module):
 
         # Loss 2: Cross entropy for classification result
         if self.stage in (0, 2):
-            self.loss2 = functional.cross_entropy(
-                z_hat,
-                z,
-                weight=self.class_weights,
-            )
+            # self.loss2 = functional.cross_entropy(
+            #     z_hat,
+            #     z,
+            #     weight=self.class_weights,
+            # )
+            self.loss2 = self.hxe_loss(z_hat, z)
 
         else:
             self.loss2 = 0.

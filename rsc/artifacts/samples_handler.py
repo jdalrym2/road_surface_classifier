@@ -67,10 +67,10 @@ class SamplesHandler(ArtifactHandler):
         m_p = np.moveaxis(m.cpu().detach().numpy(), 1, -1)
 
         # True label (argmax)
-        y_true_am: np.ndarray = np.argmax(y_true[:, 0:-1], 1)
+        y_true_am: np.ndarray = np.argmax(y_true[:, 0:-2], 1)
 
         # Predicted label (argmax)
-        y_pred_am = torch.argmax(y_pred[:, 0:-1], 1)
+        y_pred_am = torch.argmax(y_pred[:, 0:-2], 1)
         y_pred_am = y_pred_am.cpu().detach().numpy()     # type: ignore
 
         # Predicted obscuration (softmax)
