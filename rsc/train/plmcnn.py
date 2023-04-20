@@ -37,13 +37,14 @@ class PLMaskCNN(pl.LightningModule):
         self.min_val_loss = float('inf')
         self.min_val_loss_im = float('inf')
         self.min_val_loss_cl = float('inf')
+        self.min_val_loss_ob = float('inf')
 
         # Stateful learning rate
         self._lr = learning_rate
 
         self.transform = DataAugmentation()
         self.loss = MCNNLoss(self.top_level_map, self.weights, self.loss_lambda)
-        self.model = MaskCNN(num_classes=len(self.labels) + 2)  # for obscuration
+        self.model = MaskCNN(num_classes=len(self.labels) + 1)  # for obscuration
 
     def set_stage(self, v, lr):
         first_stage = (self.model.encoder, self.model.decoder)
@@ -83,6 +84,7 @@ class PLMaskCNN(pl.LightningModule):
             {
                 'train_loss_im': self.loss.loss1,
                 'train_loss_cl': self.loss.loss2,
+                'train_loss_ob': self.loss.loss3,
                 'train_loss': loss,
             },
             on_step=False,
@@ -102,6 +104,7 @@ class PLMaskCNN(pl.LightningModule):
             {
                 'val_loss_im': self.loss.loss1,
                 'val_loss_cl': self.loss.loss2,
+                'val_loss_ob': self.loss.loss3,
                 'val_loss': loss,
             },
             on_step=False,
@@ -114,14 +117,17 @@ class PLMaskCNN(pl.LightningModule):
         this_val_loss = float(metrics['val_loss'])
         this_val_loss_im = float(metrics['val_loss_im'])
         this_val_loss_cl = float(metrics['val_loss_cl'])
+        this_val_loss_ob = float(metrics['val_loss_ob'])
 
         self.min_val_loss = min(self.min_val_loss, this_val_loss)
         self.min_val_loss_im = min(self.min_val_loss_im, this_val_loss_im)
         self.min_val_loss_cl = min(self.min_val_loss_cl, this_val_loss_cl)
+        self.min_val_loss_ob = min(self.min_val_loss_ob, this_val_loss_ob)
 
         self.log_dict({
             'min_val_loss_im': self.min_val_loss_im,
             'min_val_loss_cl': self.min_val_loss_cl,
+            'min_val_loss_ob': self.min_val_loss_ob,
             'min_val_loss': self.min_val_loss,
         })
 

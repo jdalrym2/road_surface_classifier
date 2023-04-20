@@ -50,10 +50,9 @@ if __name__ == '__main__':
     # Labels and weights
     weights_df = pd.read_csv(
         '/data/road_surface_classifier/dataset_multiclass/class_weights.csv')
-
-    # NOTE: We add obscuration class with a weight of 1
-    labels = list(weights_df['class_name']) + ['obscured']
-    class_weights = list(weights_df['weight']) + [1]
+    labels = list(weights_df['class_name'])
+    top_level_map = list(weights_df['top_level'])
+    class_weights = list(weights_df['weight'])
 
     # Get dataset
     chip_size=224
@@ -78,10 +77,11 @@ if __name__ == '__main__':
     val_dl = DataLoader(val_ds, num_workers=16, batch_size=batch_size)
 
     # Model
-    learning_rate=1.479689e-04
+    learning_rate=5e-5 # 1.479689e-04
     loss_lambda=0.7
     model = PLMaskCNN(weights=class_weights,
                       labels=labels,
+                      top_level_map=top_level_map,
                       learning_rate=learning_rate,
                       loss_lambda=loss_lambda,
                       trial=None)

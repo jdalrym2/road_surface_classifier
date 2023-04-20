@@ -86,8 +86,9 @@ class RoadSurfaceDataset(Dataset):
         # Compute obscuration estimate
         obsc = 1 - (mask * (probmask > 127)).sum() / mask.sum()
 
-        # Set fuzzy labels accordingly
-        lbl[c] = 1 - obsc
+        # Set labels accordingly
+        # NOTE: no longer fuzzy
+        lbl[c] = 1
         lbl[-1] = obsc
 
         # Concat image and masks for output

@@ -41,11 +41,11 @@ class AccuracyObscHandler(ArtifactHandler):
         pred = pred.cpu().detach().numpy()
 
         # Get predicted label as argmax
-        this_y_pred = np.argmax(pred[..., :-2], axis=1)
-        this_y_true = np.argmax(features[..., :-2], axis=1)
+        this_y_pred = np.argmax(pred[..., :-1], axis=1)
+        this_y_true = np.argmax(features[..., :-1], axis=1)
         self.y_true_l.append(this_y_true)
         self.acc_l.append((this_y_pred == this_y_true).astype(int))
-        self.y_true_obsc_l.append(features[..., -2])
+        self.y_true_obsc_l.append(features[..., -1])
 
     @staticmethod
     def compute_scores(

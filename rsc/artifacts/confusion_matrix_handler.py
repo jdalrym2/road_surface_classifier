@@ -37,7 +37,7 @@ class ConfusionMatrixHandler(ArtifactHandler):
         _, features = dl_iter
 
         # We extract just the image + location mask
-        y_true = features.numpy()[..., :-2]
+        y_true = features.numpy()[..., :-1]
         self.y_true_l.append(y_true)
 
         # Get prediction from model
@@ -49,7 +49,7 @@ class ConfusionMatrixHandler(ArtifactHandler):
             self.labels = [f'Class {n+1:d}' for n in range(len(pred))]
 
         # Get predicted label as argmax
-        y_pred = np.argmax(pred[..., :-2], axis=1)
+        y_pred = np.argmax(pred[..., :-1], axis=1)
         self.y_pred_l.append(y_pred)
 
     def save(self, output_dir) -> pathlib.Path:

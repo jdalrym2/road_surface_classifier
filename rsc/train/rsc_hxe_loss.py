@@ -4,6 +4,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class RSCHXELoss(nn.Module):
@@ -30,29 +31,21 @@ class RSCHXELoss(nn.Module):
         assert len(lv_b_a) == len(lv_b_w)
         device = lv_b_a.device
 
+        # Persist Level B -> Level A mapping
+        self.lv_b_a = lv_b_a
+
         # List of indices between Lv A elements and Lv B elements
         # NOTE: assumes we have a lv B node attached to every lv A node
-        self.lv_a_idx = [torch.where(lv_b_a == e)[0] for e in range(int(lv_b_a.max() + 1))]
+        lv_a_idx = [torch.where(lv_b_a == e)[0] for e in range(int(lv_b_a.max() + 1))]
 
         # Proportion of Level A elements among level B
-        lv_a_p = torch.tensor([(1 / len(lv_b_w) / lv_b_w[idx]).sum() for idx in self.lv_a_idx])
+        lv_a_p = torch.tensor([(1 / len(lv_b_w) / lv_b_w[idx]).sum() for idx in lv_a_idx])
 
         # Level A weights
         self.lv_a_w = ((1 / len(lv_a_p)) / lv_a_p).to(device)
 
         # Level B weights for each node in level A
-        lv_b_w_a = [(1 / lv_b_w[idx]).sum() * lv_b_w[idx] / len(idx) for idx in self.lv_a_idx]
-
-        # Create loss classes for each level B cluster and assign weights
-        # self.lv_b_loss = [torch.nn.BCEWithLogitsLoss(w.to(device)) for w in lv_b_w_a]
-        self.lv_b_loss = [torch.nn.CrossEntropyLoss(w.to(device), reduction='mean') for w in lv_b_w_a]
-
-        # Create loss for each level A cluster and assign weights
-        self.lv_a_loss = torch.nn.CrossEntropyLoss(self.lv_a_w, reduction='mean')
-
-        # Loss accounting for obscuration (no weights)
-        self.o_loss = torch.nn.BCEWithLogitsLoss(reduction='mean')
-
+        self.lv_b_w_a = torch.concat([(1 / lv_b_w[idx]).sum() * lv_b_w[idx] / len(idx) for idx in lv_a_idx])
 
     def forward(self, logits: torch.Tensor, truth: torch.Tensor) -> torch.Tensor:
         """
@@ -60,24 +53,31 @@ class RSCHXELoss(nn.Module):
 
         Args:
             logits (torch.Tensor): Classification model output
-            truth (torch.Tensor): Truth classification (one-hot encoded + obsc + 1 - obsc) Shape: (N, num_lv_b + 2)
+            truth (torch.Tensor): Truth classification (one-hot encoded) Shape: (N, num_lv_b)
 
         Returns:
             torch.Tensor: Computed loss for the model
         """
 
-        # Compute BCE loss for each Lv B cluster
-        b_loss = torch.Tensor([loss(logits[:, idx], truth[:, idx]) for loss, idx in zip(self.lv_b_loss, self.lv_a_idx)]).to(logits.device).sum()
+        # Compute the logarithm of the predicted probabilities
+        log_y_pred = F.log_softmax(logits, dim=1)
+        
+        # Initialize the loss
+        loss = torch.Tensor((0,)).to(logits.device)
+        
+        # Iterate over the categories
+        for i in range(truth.shape[1]):
+            # Compute the weight for the category
+            w = self.lv_b_w_a[i]
 
-        # Aggregate truth and logits of level a
-        logits_a = torch.stack([torch.sum(logits[:, idx], 1) for idx in self.lv_a_idx], -1).to(logits.device)
-        truth_a = torch.stack([torch.sum(truth[:, idx], 1) for idx in self.lv_a_idx], -1).to(logits.device)
+            # Compute the weight for the upper layer
+            w2 = self.lv_a_w[self.lv_b_a[i]]
+            
+            # Compute the cross entropy loss for the category
+            cross_entropy = -torch.sum(truth[:, i] * log_y_pred[:, i])
+            
+            # Add the weighted cross entropy loss to the total loss
+            loss += w * w2 * cross_entropy
 
-        # Compute BCE loss for each level A cluster
-        a_loss = self.lv_a_loss(logits_a, truth_a)
-
-        # Compute BCE loss for obscuration
-        o_loss = self.o_loss(logits[:, (-2, -1)], truth[:, (-2, -1)])
-
-        # Final loss is sum of these
-        return 0.1 * b_loss + 0.9 * a_loss + 2 * o_loss
+        # Add obscuration weight to the loss
+        return loss / truth.shape[0]

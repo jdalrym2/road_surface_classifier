@@ -12,15 +12,17 @@ class MCNNLoss(nn.Module):
 
     def __init__(self, top_lv_map, class_weights, loss_lambda):
         super().__init__()
-        self.top_lv_map = torch.Tensor(top_lv_map).float().cuda()
+        self.top_lv_map = torch.IntTensor(top_lv_map).cuda()
         self.class_weights = torch.Tensor(class_weights).float().cuda()
         self.loss_lambda = loss_lambda
         self.smooth = 1     # Dice-BCE loss smoothing parameter, will just hardcode to 1
 
         self.hxe_loss = RSCHXELoss(self.top_lv_map, self.class_weights)
+        self.o_loss = torch.nn.BCEWithLogitsLoss(reduction='mean')
 
         self.loss1 = 0.
         self.loss2 = 0.
+        self.loss3 = 0.
         self.stage = 0
 
     def forward(self, y_hat: torch.Tensor, y: torch.Tensor,
@@ -60,11 +62,13 @@ class MCNNLoss(nn.Module):
             #     z,
             #     weight=self.class_weights,
             # )
-            self.loss2 = self.hxe_loss(z_hat, z)
+            self.loss2 = self.hxe_loss(z_hat[:, :-1], z[:, :-1])
 
         else:
             self.loss2 = 0.
 
+        self.loss3 = self.o_loss(z_hat[:, -1], z[:, -1])
+
         # Combine and return the combined loss
-        loss = self.loss_lambda * self.loss1 + self.loss2
+        loss = self.loss_lambda * self.loss1 + 0.6 * self.loss2 + 1.5 * self.loss3
         return loss
