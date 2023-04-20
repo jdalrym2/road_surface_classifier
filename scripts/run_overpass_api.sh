@@ -12,4 +12,4 @@ docker run \
   -v /data/gis:/data/gis \
   -v /data/gis/overpass_db:/db \
   -p 12345:80 \
-  -it --name overpass_usa wiktorn/overpass-api:latest
+  -i --name overpass_usa wiktorn/overpass-api:latest
