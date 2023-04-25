@@ -36,16 +36,16 @@ class RSCHXELoss(nn.Module):
 
         # List of indices between Lv A elements and Lv B elements
         # NOTE: assumes we have a lv B node attached to every lv A node
-        lv_a_idx = [torch.where(lv_b_a == e)[0] for e in range(int(lv_b_a.max() + 1))]
+        self.lv_a_idx = [torch.where(lv_b_a == e)[0] for e in range(int(lv_b_a.max() + 1))]
 
         # Proportion of Level A elements among level B
-        lv_a_p = torch.tensor([(1 / len(lv_b_w) / lv_b_w[idx]).sum() for idx in lv_a_idx])
+        lv_a_p = torch.tensor([(1 / len(lv_b_w) / lv_b_w[idx]).sum() for idx in self.lv_a_idx])
 
         # Level A weights
         self.lv_a_w = ((1 / len(lv_a_p)) / lv_a_p).to(device)
 
         # Level B weights for each node in level A
-        self.lv_b_w_a = torch.concat([(1 / lv_b_w[idx]).sum() * lv_b_w[idx] / len(idx) for idx in lv_a_idx])
+        self.lv_b_w_a = torch.concat([(1 / lv_b_w[idx]).sum() * lv_b_w[idx] / len(idx) for idx in self.lv_a_idx])
 
     def forward(self, logits: torch.Tensor, truth: torch.Tensor) -> torch.Tensor:
         """
@@ -63,7 +63,8 @@ class RSCHXELoss(nn.Module):
         log_y_pred = F.log_softmax(logits, dim=1)
         
         # Initialize the loss
-        loss = torch.Tensor((0,)).to(logits.device)
+        loss_lv_b = torch.Tensor((0,)).to(logits.device)
+        loss_lv_a = torch.Tensor((0,)).to(logits.device)
         
         # Iterate over the categories
         for i in range(truth.shape[1]):
@@ -77,7 +78,26 @@ class RSCHXELoss(nn.Module):
             cross_entropy = -torch.sum(truth[:, i] * log_y_pred[:, i])
             
             # Add the weighted cross entropy loss to the total loss
-            loss += w * w2 * cross_entropy
+            loss_lv_b += w * w2 * cross_entropy
 
-        # Add obscuration weight to the loss
-        return loss / truth.shape[0]
+        loss_lv_b /= truth.shape[1]
+
+        # Compute level A logits
+        logits_lv_a = torch.stack([torch.sum(logits[:, e], 1) for e in self.lv_a_idx], -1)
+        log_y_pred_lv_a = F.log_softmax(logits_lv_a, dim=1)
+        truth_lv_a = torch.stack([torch.sum(truth[:, e], 1) for e in self.lv_a_idx], -1)
+
+        # Iterate over the categories
+        for i in range(truth_lv_a.shape[1]):
+            # Compute the weight for the category
+            w = self.lv_a_w[i]
+            
+            # Compute the cross entropy loss for the category
+            cross_entropy = -torch.sum(truth_lv_a[:, i] * log_y_pred_lv_a[:, i])
+            
+            # Add the weighted cross entropy loss to the total loss
+            loss_lv_a += w * cross_entropy
+
+        loss_lv_a /= truth_lv_a.shape[1]
+
+        return (loss_lv_b + loss_lv_a) / truth.shape[0]

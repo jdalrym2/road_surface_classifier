@@ -70,5 +70,5 @@ class MCNNLoss(nn.Module):
         self.loss3 = self.o_loss(z_hat[:, -1], z[:, -1])
 
         # Combine and return the combined loss
-        loss = self.loss_lambda * self.loss1 + 0.6 * self.loss2 + 1.5 * self.loss3
+        loss = self.loss_lambda * self.loss1 + 0.6 * 2 * self.loss2 + 3 * self.loss3  # was just 0.6
         return loss

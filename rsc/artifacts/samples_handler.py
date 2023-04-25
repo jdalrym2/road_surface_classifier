@@ -26,8 +26,8 @@ class SamplesHandler(ArtifactHandler):
 
     def start(self, model: Any, dataloader: DataLoader) -> None:
         # Try to get labels from model
-        self.labels = model.__dict__.get('labels')[:-1]     # trim obsc label
-        assert self.labels is not None     # TODO: have to have number of labels here?
+        self.labels = model.__dict__.get('labels')
+        assert self.labels is not None
 
         # Setup samples dictionary
         for correct in (True, False):
@@ -62,7 +62,7 @@ class SamplesHandler(ArtifactHandler):
         xm_p = np.moveaxis(x[:, 4:5, ...].numpy(), 1, -1)
         xpm_p = np.moveaxis(xpm.numpy(), 1, -1)
 
-        # Parse model preduction
+        # Parse model prediction
         m, y_pred = model_out
         m_p = np.moveaxis(m.cpu().detach().numpy(), 1, -1)
 
@@ -73,9 +73,8 @@ class SamplesHandler(ArtifactHandler):
         y_pred_am = torch.argmax(y_pred[:, 0:-1], 1)
         y_pred_am = y_pred_am.cpu().detach().numpy()     # type: ignore
 
-        # Predicted obscuration (softmax)
-        y_pred_sm = torch.softmax(y_pred, 1)
-        y_pred_sm = y_pred_sm.cpu().detach().numpy()     # type: ignore
+        # Predicted obscuration (sigmoid)
+        y_pred_obsc = torch.sigmoid(y_pred[:, -1]).cpu().detach().numpy()  # type: ignore
 
         for i in range(x.shape[0]):
 
@@ -99,7 +98,7 @@ class SamplesHandler(ArtifactHandler):
                 y_true[i, ...],
                 y_true_am[i, ...],
                 y_pred_am[i, ...],
-                y_pred_sm[i, ...],
+                y_pred_obsc[i, ...],
             ))
 
     def save(self, output_dir: pathlib.Path) -> pathlib.Path:
@@ -121,7 +120,7 @@ class SamplesHandler(ArtifactHandler):
                 # Loop through all the samples
                 for idx, (x_p, xm_p, xpm_p, m_p, \
                     y_true, y_true_am, y_pred_am, \
-                        y_pred_sm) in enumerate(self.samples[correct][label]):
+                        y_pred_obsc) in enumerate(self.samples[correct][label]):
 
                     # Create figure
                     fig, ax = plt.subplots(1,
@@ -140,7 +139,7 @@ class SamplesHandler(ArtifactHandler):
                     ax[0].imshow(np.uint8(x_p[..., (0, 1, 2)]))
 
                     ax[1].set_title('Color IR\nObsc: %.1f%%; Pred: %.1f%%' %
-                                    (y_true[2] * 100, y_pred_sm[2] * 100))
+                                    (y_true[-1] * 100, y_pred_obsc * 100))
                     ax[1].imshow(np.uint8(x_p[..., (3, 0, 1)]))
 
                     ax[2].set_title('Combined Image \n+ Mask')
