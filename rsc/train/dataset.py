@@ -21,7 +21,7 @@ class RoadSurfaceDataset(Dataset):
     def __init__(self,
                  df_path,
                  transform,
-                 chip_size=256,
+                 chip_size=224,
                  n_channels=4,
                  limit=-1):
 
