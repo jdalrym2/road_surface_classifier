@@ -15,3 +15,5 @@ torch
 torchvision
 tqdm
 ipykernel
+ipympl
+ipywidgets

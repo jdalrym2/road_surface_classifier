@@ -7,6 +7,7 @@ from typing import Any, Sequence
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 from torch.utils.data import DataLoader
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
@@ -68,8 +69,8 @@ class ConfusionMatrixHandler(ArtifactHandler):
         fig, ax = plt.subplots(figsize=(8, 8))
         fig.subplots_adjust(left=0.2, bottom=0.2)
         try:
-            c.plot(ax=ax, cmap=plt.cm.Blues,
-                   xticks_rotation='vertical')     # type: ignore
+            c.plot(ax=ax, cmap=cm.Blues, # type: ignore
+                   xticks_rotation='vertical')     
         except ValueError:
             print('Detected issue with plot! This is likely due to a mismatch of class labels and true labels.')
             raise

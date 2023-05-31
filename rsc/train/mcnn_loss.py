@@ -9,20 +9,24 @@ from .rsc_hxe_loss import RSCHXELoss
 
 
 class MCNNLoss(nn.Module):
+    """ Combined MaskCNN loss function """
 
-    def __init__(self, top_lv_map, class_weights, loss_lambda):
+    def __init__(self, top_lv_map, class_weights, seg_k, ob_k):
         super().__init__()
+
+        # Inputs
         self.top_lv_map = torch.IntTensor(top_lv_map).cuda()
         self.class_weights = torch.Tensor(class_weights).float().cuda()
-        self.loss_lambda = loss_lambda
-        self.smooth = 1     # Dice-BCE loss smoothing parameter, will just hardcode to 1
+        self.seg_k = seg_k
+        self.ob_k = ob_k
 
+        # Loss functions
         self.hxe_loss = RSCHXELoss(self.top_lv_map, self.class_weights)
         self.o_loss = torch.nn.BCEWithLogitsLoss(reduction='mean')
 
-        self.loss1 = 0.
-        self.loss2 = 0.
-        self.loss3 = 0.
+        self.seg_loss = 0.
+        self.cl_loss = 0.
+        self.ob_loss = 0.
         self.stage = 0
 
     def forward(self, y_hat: torch.Tensor, y: torch.Tensor,
@@ -43,32 +47,33 @@ class MCNNLoss(nn.Module):
             torch.Tensor: Computed loss for the model
         """
 
-        # Loss 1: Dice BCE loss for segmentation
+        # Loss 1: Dice BCE loss for segmentation (seg_loss)
         if self.stage in (0, 1):
             intersection = (y_hat * y).sum()
-            dice_loss = 1 - (2. * intersection + self.smooth) / (
-                y_hat.sum() + y.sum() + self.smooth)
+            smooth = 1  # Dice BCE smoothing parameter, hardcoded to 1 does just fine
+            dice_loss = 1 - (2. * intersection + 1) / (
+                y_hat.sum() + y.sum() + smooth)
             binary_ce = functional.binary_cross_entropy(y_hat,
                                                         y,
                                                         reduction='mean')
-            self.loss1 = binary_ce + dice_loss
+            self.seg_loss = binary_ce + dice_loss
         else:
-            self.loss1 = 0.
+            self.seg_loss = 0.
 
-        # Loss 2: Cross entropy for classification result
+        # Loss 2: BCE Loss for estimating road obscuration (ob_loss)
+        # This operates on the last logit produced by the model
         if self.stage in (0, 2):
-            # self.loss2 = functional.cross_entropy(
-            #     z_hat,
-            #     z,
-            #     weight=self.class_weights,
-            # )
-            self.loss2 = self.hxe_loss(z_hat[:, :-1], z[:, :-1])
-
+            self.ob_loss = self.o_loss(z_hat[:, -1], z[:, -1])
         else:
-            self.loss2 = 0.
+            self.ob_loss = 0.
 
-        self.loss3 = self.o_loss(z_hat[:, -1], z[:, -1])
+        # Loss 3: Cross entropy for classification result (cl_loss)
+        # This operates on all but the last model logit
+        if self.stage in (0, 2):
+            self.cl_loss = self.hxe_loss(z_hat[:, :-1], z[:, :-1])
+        else:
+            self.cl_loss = 0.
 
         # Combine and return the combined loss
-        loss = self.loss_lambda * self.loss1 + 0.6 * 2 * self.loss2 + 3 * self.loss3  # was just 0.6
+        loss = self.seg_k * self.seg_loss + self.ob_k * self.ob_loss + self.cl_loss
         return loss

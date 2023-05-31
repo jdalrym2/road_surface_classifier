@@ -102,6 +102,8 @@ class AccuracyObscHandler(ArtifactHandler):
 
     def save(self, output_dir) -> tuple[pathlib.Path, pathlib.Path]:
 
+        assert self.labels is not None
+
         # Aggregate and organize
         y_true = np.concatenate(self.y_true_l)
         acc = np.concatenate(self.acc_l)

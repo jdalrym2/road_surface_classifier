@@ -83,8 +83,8 @@ if __name__ == '__main__':
                       labels=labels,
                       top_level_map=top_level_map,
                       learning_rate=learning_rate,
-                      loss_lambda=loss_lambda,
-                      trial=None)
+                      seg_k=0.7,
+                      ob_k=0.3)
 
 
     # Save model to results directory
@@ -102,6 +102,7 @@ if __name__ == '__main__':
     best_model_path: Optional[str] = None
     mlflow_logger: Optional[MLFlowLogger] = None
     stage=0
+    model.set_stage(2, learning_rate)
     
 
     # Logger

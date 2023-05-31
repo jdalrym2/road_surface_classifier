@@ -9,7 +9,7 @@ from osgeo import gdal, ogr, osr
 import pandas as pd
 
 from rsc.common.utils import imread_geometry, imread_dims, map_to_pix
-from osm.overpass_api.road_network import OSMRoadNetworkOverpassQuery
+from rsc.osm.overpass_api.road_network import OSMRoadNetworkOverpassQuery
 
 gdal.UseExceptions()
 ogr.UseExceptions()

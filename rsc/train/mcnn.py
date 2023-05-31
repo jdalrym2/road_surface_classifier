@@ -1,8 +1,12 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import torch
 import torch.nn as nn
 import torch.nn.functional as functional
 import torchvision
 
+# NOTE: Patch for MaxUnpool2d needs to be applied
+# when exporting to ONNX
 from torch.nn import MaxUnpool2d
 #from patch import MaxUnpool2d
 
@@ -196,22 +200,3 @@ class MaskCNN(nn.Module):
         z = self.fc(x)
 
         return y, z
-
-
-if __name__ == '__main__':
-
-    model = MaskCNN()
-
-    inp = torch.rand((1, 4, 256, 256))
-
-    x, y = model(inp)
-    print(y)
-
-    inp = inp[0, :3, :, :]
-
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(1, 2)
-    x = x.detach()
-    ax[0].imshow(inp.moveaxis(0, -1) / inp.max())
-    ax[1].imshow(x[0, 0, ...] / x.max())
-    plt.show()

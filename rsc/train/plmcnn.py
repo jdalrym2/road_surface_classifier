@@ -12,26 +12,29 @@ from .mcnn_loss import MCNNLoss
 
 
 class PLMaskCNN(pl.LightningModule):
+    """ PyTorch Lightning wrapper for training the 
+        RSC MaskCNN """
 
     def __init__(self,
-                 trial: optuna.trial.Trial | None,
                  labels,
                  top_level_map,
                  weights,
                  learning_rate: float = 1e-4,
-                 loss_lambda: float = 0.1):
+                 seg_k: float = 1.0,
+                 ob_k: float = 1.0):
         super().__init__()
 
         # Hyperparameters
         self.learning_rate = learning_rate
-        self.loss_lambda = loss_lambda
+        self.seg_k = seg_k
+        self.ob_k = ob_k
         self.labels = labels
         self.top_level_map = top_level_map
         self.weights = weights
         self.save_hyperparameters()
 
-        # Optuna trial
-        self.trial = trial
+        # Optuna trial (use set_optuna_trial)
+        self.trial: optuna.trial.Trial | None = None
 
         # Stateful min val_loss_cl
         self.min_val_loss = float('inf')
@@ -43,8 +46,12 @@ class PLMaskCNN(pl.LightningModule):
         self._lr = learning_rate
 
         self.transform = DataAugmentation()
-        self.loss = MCNNLoss(self.top_level_map, self.weights, self.loss_lambda)
-        self.model = MaskCNN(num_classes=len(self.labels) + 1)  # for obscuration
+        self.loss = MCNNLoss(self.top_level_map, self.weights,
+                             self.seg_k, self.ob_k)
+        self.model = MaskCNN(num_classes=len(self.labels) + 1)  # + 1 for obscuration
+
+    def set_optuna_trial(self, trial: optuna.trial.Trial | None):
+        self.trial = trial
 
     def set_stage(self, v, lr):
         first_stage = (self.model.encoder, self.model.decoder)
@@ -82,9 +89,9 @@ class PLMaskCNN(pl.LightningModule):
         loss = self.loss(y_hat, xpm, z_hat, z)
         self.log_dict(
             {
-                'train_loss_im': self.loss.loss1,
-                'train_loss_cl': self.loss.loss2,
-                'train_loss_ob': self.loss.loss3,
+                'train_loss_im': self.loss.seg_loss,
+                'train_loss_cl': self.loss.cl_loss,
+                'train_loss_ob': self.loss.ob_loss,
                 'train_loss': loss,
             },
             on_step=False,
@@ -102,9 +109,9 @@ class PLMaskCNN(pl.LightningModule):
         loss = self.loss(y_hat, y, z_hat, z)
         self.log_dict(
             {
-                'val_loss_im': self.loss.loss1,
-                'val_loss_cl': self.loss.loss2,
-                'val_loss_ob': self.loss.loss3,
+                'val_loss_im': self.loss.seg_loss,
+                'val_loss_cl': self.loss.cl_loss,
+                'val_loss_ob': self.loss.ob_loss,
                 'val_loss': loss,
             },
             on_step=False,
@@ -119,10 +126,11 @@ class PLMaskCNN(pl.LightningModule):
         this_val_loss_cl = float(metrics['val_loss_cl'])
         this_val_loss_ob = float(metrics['val_loss_ob'])
 
-        self.min_val_loss = min(self.min_val_loss, this_val_loss)
-        self.min_val_loss_im = min(self.min_val_loss_im, this_val_loss_im)
-        self.min_val_loss_cl = min(self.min_val_loss_cl, this_val_loss_cl)
-        self.min_val_loss_ob = min(self.min_val_loss_ob, this_val_loss_ob)
+        if this_val_loss < self.min_val_loss:
+            self.min_val_loss = this_val_loss
+            self.min_val_loss_im = this_val_loss_im
+            self.min_val_loss_cl = this_val_loss_cl
+            self.min_val_loss_ob = this_val_loss_ob
 
         self.log_dict({
             'min_val_loss_im': self.min_val_loss_im,

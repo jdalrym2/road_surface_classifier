@@ -35,11 +35,14 @@ class RoadSurfaceDataset(Dataset):
         # Number of classes
         self.n_classes = self.df['class_num'].max() + 1
 
-        # Center crop
-        self.cc = CenterCrop(chip_size)
+        # Chip size
+        self.set_chip_size(chip_size)
 
         # Transformation object
         self.transform = transform
+
+    def set_chip_size(self, chip_size: int):
+        self.cc = CenterCrop(chip_size)
 
     def __len__(self):
         return self.n_idxs
