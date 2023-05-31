@@ -2,21 +2,32 @@
 
 <img src="./figures/osm_logo.png" alt="OSM Logo" width="10%"/> <img src="./figures/rsc_road_small.svg" alt="OSM Logo" width="10%"/>
 
-This project seeks to leverage machine learning (ML) to aid in the tagging of "drivable ways" (roads) in OpenStreetMap. The main focus at the moment is automating tagging of the road surface type (paved vs. unpaved; but can we go further? asphalt, concrete, gravel, etc.), with other helpful tags such as number of lanes to be added in the future.
+This project leverages machine learning (ML) to aid in the tagging of "drivable ways" (roads) in OpenStreetMap **with > 95% accuracy**. The main focus at the moment is automating tagging of the road surface type (paved vs. unpaved; but skill is shown for asphalt, concrete, gravel, etc.), with other helpful tags such as number of lanes to be added in the future.
 
 > :warning: **Much of this code is under active development. Breaking changes are to be expected.**
+
+## Table of Contents
+- [Why Should I Care...](#why-should-i-care)
+- [Integration with the OSM Community](#integration-with-the-osm-community)
+- [Python Environment](#python-environment)
+- [Training Dataset](#training-dataset)
+- [Machine Learning Model Selection](#machine-learning-model-selection)
+- [Model Training](#model-training)
+- [Model Inference](#model-inference)
+- [Results](#results)
+- [Credits](#credits)
 
 ## Why Should I Care...
 
 ### ... About OpenStreetMap?
 
-It's most geospatial data, like that provided in Google Maps, are locked behind licensing and paywalls. Maps should not be proprietary. OpenStreetMap aims to change this, by providing open geospatial data for everyone. [See more here](https://wiki.openstreetmap.org/wiki/FAQ#Why_OpenStreetMap?).
+Most geospatial data, like that provided in Google Maps, are locked behind licensing and paywalls. Maps should not be proprietary. OpenStreetMap aims to change this, by providing open geospatial data for everyone. [See more here](https://wiki.openstreetmap.org/wiki/FAQ#Why_OpenStreetMap?).
 
 ### ... About this Project?
 
 Road surface type is critical for routing applications to generate useful routes. For example, nominal driving speeds are much slower on unpaved roads vs. paved roads. For bicycles, unpaved routes may need to be avoided completely. In any case, lacking knowledge of road surface type can lead any OSM-based routing application to choose suboptimal routes [if the assumed default surface values are incorrect](https://wiki.openstreetmap.org/wiki/Key:surface#Default_values). Widespread labeling of road surface types can increase overall confidence in OSM-based routers as a viable routing solution for cars :car: and bicycles :bicyclist: alike.
 
-## Integration with the Community
+## Integration with the OSM Community
 
 I foresee the following possible integrations with the OpenStreetMap community:
   - Provide a dataset that can augment OSM routing solutions, such as [Project OSRM](https://project-osrm.org/), [Valhalla](https://github.com/valhalla/valhalla), and [cycle.travel](https://cycle.travel/).
@@ -65,11 +76,11 @@ To support the MaskCNN architecture (_see below_), binary masks were also genera
 
 I'm currently using a MaskCNN model largely based on [Liu et al.: _Masked convolutional neural network for supervised learning problems_](https://par.nsf.gov/servlets/purl/10183705).
   - Instead of multiplication, I concatenate the predicted mask into the classifier backbone.
-  - I'm using a Resnet-19 backbone for both the encoder, decoder, and classifier with great results!
+  - I'm using a Resnet-18 backbone for both the encoder, decoder, and classifier with great results!
   - By using such a small encoder, performing inference with a CPU remains a quick task!
 <figure>
-  <img src="./figures/nihms-1637122-f0001.jpg" alt="MCNN Figure" width="75%"/>
-  <figcaption>High-level example of MaskCNN architecture. Notice the model first generated a binary mask, which is then multiplied with the source image prior to classification. (<i>source: Liu et al.</i>)</figcaption>
+  <img src="./figures/rsc_diagram.drawio.png" alt="MCNN Figure" style="width: 100%"/>
+  <figcaption>Quick diagram of the MaskCNN architecture used here. The NAIP imagery gets combined with a mask created from OSM vector data, which in-turn is used to generate the segmentation mask. All of this is fed into the classifier model.</figcaption>
 </figure>
 
 The benefit of this model over a plain Resnet is the ability to tell the model what the mask should look like. This tells the classifier "where to look" (i.e. I care about _this_ road in the image, not _that_ one).
@@ -86,29 +97,40 @@ Training is currently done w/ [PyTorch Lightning](https://www.pytorchlightning.a
 
 At this time I'm only including the code, and not the model... since I'm uncertain on how to license it. Please contact me if you are interested in the actual model.
 
-Here are some example of correct inference:
-<img src="./figures/samples/correct/paved/sample_00000.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/correct/paved/sample_00001.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/correct/paved/sample_00002.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/correct/paved/sample_00003.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/correct/paved/sample_00004.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/correct/unpaved/sample_00000.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/correct/unpaved/sample_00001.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/correct/unpaved/sample_00002.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/correct/unpaved/sample_00003.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/correct/unpaved/sample_00004.png" alt="Inference plots" width="100%"/>
+<details>
+<summary>Here are some examples of correct inference for paved roads:</summary>
+<br>
+<img src="./figures/samples/correct/paved/sample_00000.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/correct/paved/sample_00001.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/correct/paved/sample_00002.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/correct/paved/sample_00003.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/correct/paved/sample_00004.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+</details>
 
-And some examples of incorrect ones:
-<img src="./figures/samples/incorrect/paved/sample_00000.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/incorrect/paved/sample_00001.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/incorrect/paved/sample_00002.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/incorrect/paved/sample_00003.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/incorrect/paved/sample_00004.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/incorrect/unpaved/sample_00000.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/incorrect/unpaved/sample_00001.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/incorrect/unpaved/sample_00002.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/incorrect/unpaved/sample_00003.png" alt="Inference plots" width="100%"/>
-<img src="./figures/samples/incorrect/unpaved/sample_00004.png" alt="Inference plots" width="100%"/>
+<details>
+<summary>Here are some examples of correct inference for unpaved roads:</summary>
+<br>
+<img src="./figures/samples/correct/unpaved/sample_00000.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/correct/unpaved/sample_00001.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/correct/unpaved/sample_00002.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/correct/unpaved/sample_00003.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/correct/unpaved/sample_00004.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+</details>
+
+<details>
+<summary>And some examples of incorrect guesses:</summary>
+<br>
+<img src="./figures/samples/incorrect/paved/sample_00000.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/incorrect/paved/sample_00001.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/incorrect/paved/sample_00002.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/incorrect/paved/sample_00003.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/incorrect/paved/sample_00004.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/incorrect/unpaved/sample_00000.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/incorrect/unpaved/sample_00001.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/incorrect/unpaved/sample_00002.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/incorrect/unpaved/sample_00003.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+<img src="./figures/samples/incorrect/unpaved/sample_00004.png" alt="Inference plots" style="width: 100%; height: 200px; object-fit: cover;"/>
+</details>
 
 
 ## Results
@@ -127,6 +149,8 @@ And some examples of incorrect ones:
   <img src="./figures/confusion_matrix.png" alt="Confusion matrix for full multiclass model" width="75%"/>
   <figcaption>Given the imagery resolution, often obscuration of vegetation, and often incorrect truth labels this is impressive. The model clearly shows skill in predicting a wider range of classes than just paved vs. unpaved.</figcaption>
 </figure>
+
+<br>
 
 Thanks for getting all the way to the bottom, cheers! :tada:
 
