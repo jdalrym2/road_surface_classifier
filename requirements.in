@@ -10,6 +10,7 @@ optuna>=3.1.0
 mlflow
 requests
 scikit_learn
+scikit_image
 scipy
 torch
 torchvision
