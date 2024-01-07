@@ -160,4 +160,4 @@ Thanks for getting all the way to the bottom, cheers! :tada:
 Liu, L. Y. F., Liu, Y., & Zhu, H. (2020). Masked convolutional neural network for supervised learning problems. Stat, 9(1), e290.
 
 ## License
-[MIT](https://choosealicense.com/licenses/mit/) &copy; 2023 Jonathan Dalrymple
+[MIT](https://choosealicense.com/licenses/mit/) &copy; 2024 Jonathan Dalrymple
