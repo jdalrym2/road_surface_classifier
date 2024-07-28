@@ -3,6 +3,7 @@
 
 import sys
 import logging
+import functools
 
 # Configure logger
 _logger = logging.getLogger(__name__)
@@ -15,11 +16,20 @@ for h in _logger_handlers:
     h.setFormatter(_logger_formatter)
     _logger.addHandler(h)
 
-
 def get_logger():
     """ Fetch the module logger """
     return _logger
 
+def gdal_required(is_available):
+    """ Decorator function to check if GDAL was imported """
+    def _decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if not is_available:
+                raise RuntimeError('OGR is required for this function / method.')
+            return func(*args, **kwargs)
+        return wrapper
+    return _decorator
 
 # Exposed classes to user
 from .osm_element import OSMElement, OSMNode, OSMWay

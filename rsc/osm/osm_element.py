@@ -10,9 +10,18 @@ import warnings
 from abc import ABC, abstractmethod
 import xml.etree.ElementTree as ET
 
+_gdal_available = False
+try:
+    from osgeo import ogr
+    ogr.UseExceptions()
+    _gdal_available = True
+except ModuleNotFoundError:
+    warnings.warn('Could not find GDAL. Some methods may not be available.', ImportWarning)
+
+from . import gdal_required
+
 # Generic type for abstract classmethods of OSMElement
 T = TypeVar('T', bound='OSMElement')
-
 
 class OSMElement(ABC):
     """ Abstract class to describe an OSM element (node, way, etc.) """
@@ -132,6 +141,34 @@ class OSMNode(OSMElement):
         s = super().__str__()[:-1]
         s += f'; lat: {self.lat:.3f}; lon: {self.lon:.3f}>'
         return s
+
+    @gdal_required(_gdal_available)
+    def to_ogr_geom(self) -> ogr.Geometry:
+        """
+        Convert this node to an OGR geometry object
+
+        Note:
+            Requires GDAL / OGR
+
+        Returns:
+            ogr.Geometry: OGR Geometry for node.
+        """
+        pt = ogr.Geometry(ogr.wkbPoint)
+        pt.AddPoint_2D(self.lon, self.lat)
+        return pt
+    
+    @gdal_required(_gdal_available)
+    def to_wkt(self) -> str:
+        """
+        Get the WKT representation for this node.
+
+        Note:
+            Requires GDAL / OGR
+
+        Returns:
+            str: WKT representation for point
+        """        
+        return self.to_ogr_geom().ExportToWkt()
 
     def to_json_dict(self) -> dict:
         """ Export this element to a JSON dict (Python dictionary) """
