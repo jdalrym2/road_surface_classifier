@@ -31,6 +31,12 @@ from rsc.artifacts.confusion_matrix_handler import ConfusionMatrixHandler
 # Recommended for CUDA
 torch.set_float32_matmul_precision('medium')
 
+# Whether or not to include the NIR channel
+# since the input dataset includes it
+INCLUDE_NIR = True
+
+# Quick test, train an epic on fewer-than-normal
+# set of images to check everything works
 QUICK_TEST = False
 
 if __name__ == '__main__':
@@ -61,12 +67,14 @@ if __name__ == '__main__':
         '/data/road_surface_classifier/dataset_multiclass/dataset_train.csv',
         transform=preprocess,
         chip_size=chip_size,
-        limit=-1 if not QUICK_TEST else 500)
+        limit=-1 if not QUICK_TEST else 500,
+        n_channels=4 if INCLUDE_NIR else 3)
     val_ds = RoadSurfaceDataset(
         '/data/road_surface_classifier/dataset_multiclass/dataset_val.csv',
         transform=preprocess,
         chip_size=chip_size,
-        limit=-1 if not QUICK_TEST else 500)
+        limit=-1 if not QUICK_TEST else 500,
+        n_channels=4 if INCLUDE_NIR else 3)
 
     # Create data loaders.
     batch_size = 64
@@ -77,14 +85,14 @@ if __name__ == '__main__':
     val_dl = DataLoader(val_ds, num_workers=16, batch_size=batch_size)
 
     # Model
-    learning_rate=5e-5 # 1.479689e-04
-    loss_lambda=0.7
+    learning_rate=0.00040984645874638675
     model = PLMaskCNN(weights=class_weights,
                       labels=labels,
+                      nc=4 if INCLUDE_NIR else 3,
                       top_level_map=top_level_map,
                       learning_rate=learning_rate,
                       seg_k=0.7,
-                      ob_k=0.3)
+                      ob_k=0.9)
 
 
     # Save model to results directory
@@ -101,8 +109,8 @@ if __name__ == '__main__':
     # Train model in stages
     best_model_path: Optional[str] = None
     mlflow_logger: Optional[MLFlowLogger] = None
-    stage=0
-    model.set_stage(2, learning_rate)
+    stage = 0
+    model.set_stage(stage, learning_rate)
     
 
     # Logger
@@ -127,7 +135,7 @@ if __name__ == '__main__':
                                             patience=10)
 
     # Stochastic Weight Averaging
-    swa_callback = StochasticWeightAveraging(swa_lrs=0.007610)
+    swa_callback = StochasticWeightAveraging(swa_lrs=0.6863423660749621)
 
     # Trainer
     trainer = pl.Trainer(accelerator='gpu',
@@ -170,7 +178,8 @@ if __name__ == '__main__':
     artifacts_dir = save_dir / 'artifacts'
     artifacts_dir.mkdir(parents=False, exist_ok=True)
     generator = ArtifactGenerator(artifacts_dir, model, val_dl)
-    generator.add_handler(ConfusionMatrixHandler())
+    generator.add_handler(ConfusionMatrixHandler(simple=False))
+    generator.add_handler(ConfusionMatrixHandler(simple=True))
     generator.add_handler(AccuracyObscHandler())
     generator.add_handler(ObscCompareHandler())
     generator.add_handler(SamplesHandler())

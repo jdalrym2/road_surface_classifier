@@ -50,16 +50,17 @@ class SamplesHandler(ArtifactHandler):
         x, features = dl_iter
 
         # Get mask and image
-        xpm = x[:, 5:6, :, :]
-        x = x[:, 0:5, :, :]
+        xpm = x[:, (-1,), :, :]
+        xm = x[:, (-2,), :, :]
+        x = x[:, :-2, :, :]
 
         # Get true label
         y_true = features.cpu().detach().numpy()
 
         # Transform image and mask
-        x_p = (np.moveaxis(x[:, 0:4, ...].numpy(), 1, -1) * 255.).astype(
+        x_p = (np.moveaxis(x.numpy(), 1, -1) * 255.).astype(
             np.uint8)
-        xm_p = np.moveaxis(x[:, 4:5, ...].numpy(), 1, -1)
+        xm_p = np.moveaxis(xm.numpy(), 1, -1)
         xpm_p = np.moveaxis(xpm.numpy(), 1, -1)
 
         # Parse model prediction
@@ -70,7 +71,7 @@ class SamplesHandler(ArtifactHandler):
         y_true_am: np.ndarray = np.argmax(y_true[:, 0:-1], 1)
 
         # Predicted label (argmax)
-        y_pred_am = torch.argmax(y_pred[:, 0:-1], 1)
+        y_pred_am = torch.argmax(y_pred[:, :-1], 1)
         y_pred_am = y_pred_am.cpu().detach().numpy()     # type: ignore
 
         # Predicted obscuration (sigmoid)
@@ -121,10 +122,13 @@ class SamplesHandler(ArtifactHandler):
                 for idx, (x_p, xm_p, xpm_p, m_p, \
                     y_true, y_true_am, y_pred_am, \
                         y_pred_obsc) in enumerate(self.samples[correct][label]):
+                    
+                    # Get num-channels (3 - RGB, 4 - RGB + NIR)
+                    _, _, nc = x_p.shape
 
                     # Create figure
                     fig, ax = plt.subplots(1,
-                                           5,
+                                           nc + 1,
                                            sharex=True,
                                            sharey=True,
                                            figsize=(15, 3.5))
@@ -132,31 +136,40 @@ class SamplesHandler(ArtifactHandler):
                         _ax.xaxis.set_visible(False)
                         _ax.yaxis.set_visible(False)
 
+                    # Allows us to support different
+                    # number of subplots in NIR case
+                    ax_idx = 0
+
                     # Plot the result, highlighting the road with the mask
-                    ax[0].set_title(
+                    ax[ax_idx].set_title(
                         'RGB\nTrue: %s; Pred: %s' %
                         (self.labels[y_true_am], self.labels[y_pred_am]))
-                    ax[0].imshow(np.uint8(x_p[..., (0, 1, 2)]))
+                    ax[ax_idx].imshow(np.uint8(x_p[..., (0, 1, 2)]))
+                    ax_idx += 1
 
-                    ax[1].set_title('Color IR\nObsc: %.1f%%; Pred: %.1f%%' %
-                                    (y_true[-1] * 100, y_pred_obsc * 100))
-                    ax[1].imshow(np.uint8(x_p[..., (3, 0, 1)]))
+                    # Plot color IR if relevant
+                    if nc > 3:
+                        ax[ax_idx].set_title('Color IR')
+                        ax[ax_idx].imshow(np.uint8(x_p[..., (3, 0, 1)]))
+                        ax_idx += 1
 
-                    ax[2].set_title('Combined Image \n+ Mask')
-                    ax[2].imshow(
+                    ax[ax_idx].set_title('Combined Image + Mask\nObsc: %.1f%%; Pred: %.1f%%' % (y_true[-1] * 100, y_pred_obsc * 100))
+                    ax[ax_idx].imshow(
                         np.uint8(x_p[..., (0, 1, 2)] * (0.33 + 0.67 * xm_p)))
+                    ax_idx += 1
 
-                    ax[3].set_title('Combined Image \n+ True ProbMask')
-                    ax[3].imshow(np.uint8(0.5 * x_p[..., (0, 1, 2)]))
-                    ax[3].imshow(xpm_p,
+                    ax[ax_idx].set_title('Combined Image \n+ True ProbMask')
+                    ax[ax_idx].imshow(np.uint8(0.5 * x_p[..., (0, 1, 2)]))
+                    ax[ax_idx].imshow(xpm_p,
                                  cmap='magma',
                                  vmin=0,
                                  vmax=1,
                                  alpha=0.33)
+                    ax_idx += 1
 
-                    ax[4].set_title('Combined Image \n+ Pred ProbMask')
-                    ax[4].imshow(np.uint8(0.5 * x_p[..., (0, 1, 2)]))
-                    ax[4].imshow(m_p, cmap='magma', vmin=0, vmax=1, alpha=0.33)
+                    ax[ax_idx].set_title('Combined Image \n+ Pred ProbMask')
+                    ax[ax_idx].imshow(np.uint8(0.5 * x_p[..., (0, 1, 2)]))
+                    ax[ax_idx].imshow(m_p, cmap='magma', vmin=0, vmax=1, alpha=0.33)
 
                     # Save the figure
                     output_path = label_dir / f'sample_{idx:05d}.png'

@@ -21,7 +21,8 @@ class PLMaskCNN(pl.LightningModule):
                  weights,
                  learning_rate: float = 1e-4,
                  seg_k: float = 1.0,
-                 ob_k: float = 1.0):
+                 ob_k: float = 1.0,
+                 nc: int = 4):
         super().__init__()
 
         # Hyperparameters
@@ -32,6 +33,9 @@ class PLMaskCNN(pl.LightningModule):
         self.top_level_map = top_level_map
         self.weights = weights
         self.save_hyperparameters()
+
+        # Number of channels
+        self.nc = nc
 
         # Optuna trial (use set_optuna_trial)
         self.trial: optuna.trial.Trial | None = None
@@ -45,10 +49,14 @@ class PLMaskCNN(pl.LightningModule):
         # Stateful learning rate
         self._lr = learning_rate
 
-        self.transform = DataAugmentation()
+        self.transform = DataAugmentation(has_nir=(nc == 4))
         self.loss = MCNNLoss(self.top_level_map, self.weights,
                              self.seg_k, self.ob_k)
-        self.model = MaskCNN(num_classes=len(self.labels) + 1)  # + 1 for obscuration
+        
+        # Labels: add 1 for "obscuartion"
+        # Channels: add 1 for "mask" (e.g. RGB + mask, RGB + NIR + mask)
+        self.model = MaskCNN(num_classes=len(self.labels) + 1,
+                            num_channels=nc + 1)
 
     def set_optuna_trial(self, trial: optuna.trial.Trial | None):
         self.trial = trial
@@ -101,9 +109,12 @@ class PLMaskCNN(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         x, z = batch
 
-        # Create image + mask, probmask (be careful, order matters!)
-        y = x[:, 5:6, :, :]
-        x = x[:, 0:5, :, :]
+        img_mask_c = slice(0, self.nc + 1)
+        probmask_c = slice(self.nc + 1, self.nc + 2)
+
+        # Create probmask, image + mask (be careful, order matters!)
+        y = x[:, probmask_c, :, :]
+        x = x[:, img_mask_c, :, :]
 
         y_hat, z_hat = self.forward(x)
         loss = self.loss(y_hat, y, z_hat, z)

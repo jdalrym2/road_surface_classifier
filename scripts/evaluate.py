@@ -6,7 +6,6 @@
 """
 
 # %%
-# Hacky way to get PLMCNN in scope
 
 import pathlib
 from tqdm import tqdm
