@@ -10,8 +10,11 @@ from .color_jitter_nohuesat import ColorJitterNoHueSat
 
 class DataAugmentation(nn.Module):
 
-    def __init__(self):
+    def __init__(self, has_nir: bool=True):
         super().__init__()
+
+        # Are we augmenting NIR as well?
+        self.has_nir = has_nir
 
         # Random positional transformations
         self.transform_flip = nn.Sequential(
@@ -40,17 +43,27 @@ class DataAugmentation(nn.Module):
         # Apply position transform to image + masks
         x_aug = self.transform_flip(x)
 
+        # Break down what all of the channels are
+        mask_c = slice(4, 5) if self.has_nir else slice(3, 4)
+        probmask_c = slice(5, 6) if self.has_nir else slice(4, 5)
+
+        # RGB color transformation
+        im_aug = self.transform_color(x_aug[:, 0:3, ...])
+
+        if self.has_nir:
+            # NIR color transformation
+            im_nir_aug = self.transform_nir(x_aug[:, 3:4, ...])
+
+            # Combine NIR with RGB image
+            im_aug = torch.concat((im_aug, im_nir_aug), dim=1)
+
         # Apply offset transform to mask
-        mask_aug = self.transform_offset(x_aug[:, 4:5, ...])
+        mask_aug = self.transform_offset(x_aug[:, mask_c, ...])
 
-        # RGB + NIR color transformations
-        im_rgb_aug = self.transform_color(x_aug[:, 0:3, ...])
-        im_nir_aug = self.transform_nir(x_aug[:, 3:4, ...])
-
-        # Combine into 4-channel RGB+NIR image + location mask
-        im_aug = torch.concat((im_rgb_aug, im_nir_aug, mask_aug), dim=1)
+        # Combine into color image + location mask
+        im_aug = torch.concat((im_aug, mask_aug), dim=1)
 
         # Extract probmask for training
-        pm_aug = x_aug[:, 5:6, :, :]
+        pm_aug = x_aug[:, probmask_c, :, :]
 
         return im_aug, pm_aug

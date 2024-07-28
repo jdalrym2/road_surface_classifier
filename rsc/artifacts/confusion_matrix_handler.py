@@ -20,8 +20,15 @@ matplotlib.use('Agg')
 class ConfusionMatrixHandler(ArtifactHandler):
     """ Handler class to generate a confusion matrix """
 
-    def __init__(self):
+    def __init__(self, simple=False):
         super().__init__()
+
+        # Adds "simple mode", where we are only
+        # looking at paved / unpaved roads
+        # I admit this short-circuits the
+        # generalizability of this class, but it's
+        # worth it
+        self.simple = simple
 
         self.labels: list[str] | None = None
         self.y_true_l: list[Any] = []
@@ -31,6 +38,8 @@ class ConfusionMatrixHandler(ArtifactHandler):
 
         # Try to get labels from model
         self.labels = model.__dict__.get('labels')
+        if self.simple:
+            self.labels = ['paved', 'unpaved']
 
     def on_iter(self, dl_iter: Sequence, model_out: Sequence) -> None:
 
@@ -39,6 +48,9 @@ class ConfusionMatrixHandler(ArtifactHandler):
 
         # We extract just the image + location mask
         y_true = features.numpy()[..., :-1]
+        if self.simple:
+            y_true = np.sum(np.stack((y_true[..., 0:4], y_true[..., 4:8]), axis=1), axis=-1)
+        y_true = np.argmax(y_true, axis=1)
         self.y_true_l.append(y_true)
 
         # Get prediction from model
@@ -50,14 +62,17 @@ class ConfusionMatrixHandler(ArtifactHandler):
             self.labels = [f'Class {n+1:d}' for n in range(len(pred))]
 
         # Get predicted label as argmax
-        y_pred = np.argmax(pred[..., :-1], axis=1)
+        if self.simple:
+            y_pred = np.sum(np.stack((pred[..., 0:4], pred[..., 4:8]), axis=1), axis=-1)
+        else:
+            y_pred = pred[..., :-1]
+        y_pred = np.argmax(y_pred, axis=1)
         self.y_pred_l.append(y_pred)
 
     def save(self, output_dir) -> pathlib.Path:
 
         # Aggregate and organize
         y_true = np.concatenate(self.y_true_l)
-        y_true = np.argmax(y_true, axis=1)
         y_pred = np.concatenate(self.y_pred_l)
 
         # Generate and save the confusion matrix
@@ -65,7 +80,10 @@ class ConfusionMatrixHandler(ArtifactHandler):
                                                     y_pred,
                                                     normalize='true'),
                                    display_labels=self.labels)
-        output_path = output_dir / 'confusion_matrix.png'
+        if self.simple:
+            output_path = output_dir / 'confusion_matrix_simple.png'
+        else:
+            output_path = output_dir / 'confusion_matrix.png'
         fig, ax = plt.subplots(figsize=(8, 8))
         fig.subplots_adjust(left=0.2, bottom=0.2)
         try:

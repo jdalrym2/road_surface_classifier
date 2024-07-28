@@ -164,15 +164,15 @@ class Resnet18Decoder(FreezableModuleList):
 
 class MaskCNN(nn.Module):
 
-    def __init__(self, num_classes=2):
+    def __init__(self, num_classes=2, num_channels=5):
         super().__init__()
 
         # Segmentation stage
-        self.encoder = Resnet18Encoder(in_channels=5)
+        self.encoder = Resnet18Encoder(in_channels=num_channels)
         self.decoder = Resnet18Decoder()
 
         # Classification stage
-        self.encoder2 = Resnet18Encoder(in_channels=5)
+        self.encoder2 = Resnet18Encoder(in_channels=num_channels)
         self.avgpool = FreezableAdaptiveAvgPool2d(output_size=(1, 1))
         self.fc = FreezableLinear(512, num_classes, bias=True)
 
@@ -185,13 +185,14 @@ class MaskCNN(nn.Module):
         y = self.decoder(y, self.encoder.feats, self.encoder.maxpool_idxs)
         y = y[:, 0:1, ...]
 
-        # Adjust image from mask
-        # NOTE: image is (0, 1, 2, 3). Input mask is (4),
-        # so we only fetch the former
+        # Adjust image from mask: we only fetch the former
+        # NOTE: - RGB: image is (0, 1, 2). Input mask is (3,),
+        #       - RGB + NIR image is (0, 1, 2, 3). Input mask is (4,),
+        #       - In both cases this is the image is :-1, mask is -1
         # NOTE: the paper recommends multiplication, but in this case
         # concat-ing the segmentation mask seems to produce better results
-        # x = torch.multiply(x[:, 0:4, ...], y)
-        x = torch.concat((x[:, 0:4, ...], y), dim=1)
+        # x = torch.multiply(x[:, :-1, ...], y)
+        x = torch.concat((x[:, :-1, ...], y), dim=1)
 
         # Updated Image -> Features
         x = self.encoder2(x)

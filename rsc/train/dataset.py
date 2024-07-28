@@ -56,6 +56,12 @@ class RoadSurfaceDataset(Dataset):
         with PIL.Image.open(row.chip_path) as pim:
             im = np.array(self.cc(pim))
         tn = im.shape[2] if im.ndim == 3 else 1
+        if tn > 1:
+            # Adds support for loading imagery >
+            # n_channels. In this case we just grab
+            # the required number of channels
+            im = im[..., :self.n_channels]
+            tn = im.shape[2]
         if tn > self.n_channels:
             print(
                 f'WARNING: Got {im.shape[2]} channel image but model only has {self.n_channels} dimensions!'

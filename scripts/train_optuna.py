@@ -33,6 +33,12 @@ from rsc.train.dataset import RoadSurfaceDataset
 # Recommended for CUDA
 torch.set_float32_matmul_precision('medium')
 
+# Whether or not to include the NIR channel
+# since the input dataset includes it
+INCLUDE_NIR = True
+
+# Quick test, train an epic on fewer-than-normal
+# set of images to check everything works
 QUICK_TEST = False
 
 if __name__ == '__main__':
@@ -56,12 +62,14 @@ if __name__ == '__main__':
         '/data/road_surface_classifier/dataset_multiclass/dataset_train.csv',
         transform=preprocess,
         chip_size=224,
-        limit=-1 if not QUICK_TEST else 1500)
+        limit=-1 if not QUICK_TEST else 1500,
+        n_channels=4 if INCLUDE_NIR else 3)
     val_ds = RoadSurfaceDataset(
         '/data/road_surface_classifier/dataset_multiclass/dataset_val.csv',
         transform=preprocess,
         chip_size=224,
-        limit=-1 if not QUICK_TEST else 500)
+        limit=-1 if not QUICK_TEST else 500,
+        n_channels=4 if INCLUDE_NIR else 3)
 
     def objective(trial: optuna.trial.Trial):
         global train_ds, val_ds
@@ -75,9 +83,8 @@ if __name__ == '__main__':
         val_dl = DataLoader(val_ds, num_workers=16, batch_size=batch_size)
 
         # Hyperparameters
-        chip_size = trial.suggest_categorical(
-            "chip_size", [28, 32, 48, 56, 64, 112, 128, 224, 256])
-        learning_rate = trial.suggest_float("learning_rate", 1e-7, 1e-2, log=True)
+        chip_size = 224
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
         swa_lrs = trial.suggest_float("swa_lrs", 1e-4, 1e0, log=True)
         seg_k = trial.suggest_float("seg_k", 0.1, 1, step=0.1)
         ob_k = trial.suggest_float("ob_k", 0.1, 1, step=0.1)
@@ -89,6 +96,7 @@ if __name__ == '__main__':
         # Set model parameters
         model = PLMaskCNN(weights=class_weights,
                       labels=labels,
+                      nc=4 if INCLUDE_NIR else 3,
                       top_level_map=top_level_map,
                       learning_rate=learning_rate,
                       seg_k=seg_k,
@@ -120,7 +128,7 @@ if __name__ == '__main__':
 
         # Logger
         mlflow_logger = MLFlowLogger(
-            experiment_name='road_surface_classifier_optuna',
+            experiment_name='road_surface_classifier',
             run_name='run_%s_%d_trial_%d' % (now, stage, trial.number),
             tracking_uri='http://truenas:9809')
         mlflow_logger.log_hyperparams(dict(chip_size=chip_size, swa_lrs=swa_lrs))
@@ -185,7 +193,8 @@ if __name__ == '__main__':
         artifacts_dir = save_dir / 'artifacts'
         artifacts_dir.mkdir(parents=False, exist_ok=True)
         generator = ArtifactGenerator(artifacts_dir, model, val_dl)
-        generator.add_handler(ConfusionMatrixHandler())
+        generator.add_handler(ConfusionMatrixHandler(simple=False))
+        generator.add_handler(ConfusionMatrixHandler(simple=True))
         generator.add_handler(AccuracyObscHandler())
         generator.add_handler(ObscCompareHandler())
         generator.run(raise_on_error=False)
@@ -200,7 +209,7 @@ if __name__ == '__main__':
             study = optuna.create_study(
                 directions=['minimize', 'minimize'],
                 storage='sqlite:///./optuna_rsc.sqlite3',
-                study_name='study_20230501_000000Z',
+                study_name='study_20240108_000000Z',
                 load_if_exists=True)
             study.optimize(objective, n_trials=num_trials)
         except Exception:

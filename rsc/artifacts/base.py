@@ -137,7 +137,8 @@ class ArtifactGenerator:
             x, _ = dl_iter
 
             # Extract just the image + location mask for inference
-            x = x[:, 0:5, :, :].to(device)
+            # i.e. strip the last (probmask) channel
+            x = x[:, :-1, :, :].to(device)
 
             # Get prediction from model
             model_out = self.model(x)

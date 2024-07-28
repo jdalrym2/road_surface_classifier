@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 
 class RSCHXELoss(nn.Module):
-    """ Hierarchical Cross Entropy Loss (tailed to RSC model to handle obscuration estimates)"""
+    """ Hierarchical Cross Entropy Loss (tailored to RSC model to handle obscuration estimates)"""
 
     def __init__(self, lv_b_a: torch.Tensor, lv_b_w: torch.Tensor):
         """

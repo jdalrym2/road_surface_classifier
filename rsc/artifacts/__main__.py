@@ -114,6 +114,7 @@ if __name__ == '__main__':
     # Construct dataset
     val_ds = RoadSurfaceDataset(csv_path,
                                 transform=PreProcess(),
+                                n_channels=model.nc,
                                 limit=pargs.count)
 
     # Construct dataloader
@@ -129,9 +130,10 @@ if __name__ == '__main__':
 
     # Generate artifacts from model
     generator = ArtifactGenerator(save_dir, model, val_dl)
-    generator.add_handler(ConfusionMatrixHandler())
+    generator.add_handler(ConfusionMatrixHandler(simple=True))
+    generator.add_handler(ConfusionMatrixHandler(simple=False))
     generator.add_handler(AccuracyObscHandler())
     generator.add_handler(ObscCompareHandler())
     generator.add_handler(SamplesHandler())
-    # generator.add_handler(AUCHandler())
+    # generator.add_handler(AUCHandler())  # disabled for multiclass
     generator.run(raise_on_error=pargs.raise_on_error)
