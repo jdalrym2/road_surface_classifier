@@ -13,7 +13,17 @@ from datetime import datetime
 import xml.etree.ElementTree as ET
 from typing import Iterator, List, Dict, Union, Optional
 
-from osgeo import gdal, ogr, osr
+_gdal_available = False
+try:
+    from osgeo import gdal, ogr, osr
+    _gdal_available = True
+    gdal.UseExceptions()
+    ogr.UseExceptions()
+    osr.UseExceptions()
+except ModuleNotFoundError:
+    warnings.warn('Could not find GDAL. Some methods may not be available.', ImportWarning)
+
+from . import gdal_required
 
 from . import get_logger
 from .osm_element import OSMNode, OSMWay
@@ -53,6 +63,10 @@ class OSMNetwork:
 
     def __repr__(self):
         return self.__str__()
+    
+    def __iadd__(self, other: OSMNetwork):
+        self._nodes.update(other._nodes)
+        self._ways.update(other._ways)
 
     def get_node_by_id(self, node_id: int) -> OSMNode:
         """ Return an OSM node from its integer ID """
@@ -67,6 +81,45 @@ class OSMNetwork:
             return self._ways[way_id]
         except KeyError:
             raise ValueError('Way ID was not found: %s' % repr(way_id))
+        
+    @gdal_required(_gdal_available)
+    def get_way_ogr_geometry(self, way_id: int) -> ogr.Geometry:      
+        """
+        Convert a way to an OGR geometry object
+
+        Note:
+            Requires GDAL / OGR
+
+        Args:
+            way_id (int): OSM Way ID
+
+        Returns:
+            ogr.Geometry: OGR Geometry for node.
+        """
+        # Look up node objects for way
+        nodes = [self._nodes[n] for n in self._ways[way_id].nodes]
+
+        # Construct OGR geometry
+        geom = ogr.Geometry(ogr.wkbLineString)
+        [geom.AddPoint_2D(n.lon, n.lat) for n in nodes]
+
+        return geom
+    
+    @gdal_required(_gdal_available)
+    def get_way_as_wkt(self, way_id: int) -> str:
+        """
+        Get the WKT representation for this node.
+
+        Note:
+            Requires GDAL / OGR
+
+        Args:
+            way_id (int): OSM Way ID
+
+        Returns:
+            str: WKT representation for point
+        """ 
+        return self.get_way_ogr_geometry(way_id).ExportToWkt()
 
     @property
     def num_nodes(self) -> int:
@@ -350,6 +403,7 @@ class OSMNetwork:
         tree = ET.ElementTree(root)
         tree.write(save_path, encoding='utf-8', xml_declaration=True)
 
+    @gdal_required(_gdal_available)
     def _to_gpkg(self, save_path: Union[str, pathlib.Path]) -> None:
         """ Save this network as an GPKG file
 
@@ -505,6 +559,7 @@ class OSMNetwork:
         return d
 
     @classmethod
+    @gdal_required(_gdal_available)
     def _from_gpkg(cls, load_path: Union[str, pathlib.Path]) -> OSMNetwork:
         """ Import the network from a GPKG file """
         # Get logger

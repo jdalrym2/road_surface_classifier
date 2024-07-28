@@ -1,6 +1,6 @@
 boto3
 numpy
-GDAL>3,<=3.4.1
+GDAL>3,<=3.8.3
 kornia
 matplotlib
 pandas
